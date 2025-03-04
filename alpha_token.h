@@ -1,6 +1,6 @@
 #ifndef ALPHA_TOKEN_H
 #define ALPHA_TOKEN_H
-/* test reverse */
+
 typedef enum {
     IF, ELSE, WHILE, FOR, FUNCTION, RETURN, BREAK, CONTINUE,
     AND, NOT, OR, LOCAL, TRUE, FALSE, NIL
