@@ -7,8 +7,6 @@
 
 alpha_token_t *head = NULL;
 comment_info_t current_comment_info;
-/* uname test */
-
 
 int comment_depth = 0;
 int nested_comment = 0;
