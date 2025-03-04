@@ -9,3 +9,8 @@ Pictures/
 Public/
 Downloads/
 
+alpha.dSYM/Contents/Info.plist
+alpha.dSYM/Contents/Resources/DWARF/alpha
+alpha.dSYM/Contents/Resources/Relocations/aarch64/alpha.yml
+alpha
+lex.yy.c
