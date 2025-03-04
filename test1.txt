@@ -1,6 +1,0 @@
-/* Test 5: Block Comments */
-/* A simple block comment */
-
-/* Outer block comment with nesting:
-   /* Nested block comment */
-   End of outer block comment */
