@@ -1,0 +1,11 @@
+# Ignore system and macOS files
+.DS_Store
+.vscode/
+.Trash/
+Library/
+Movies/
+Music/
+Pictures/
+Public/
+Downloads/
+
