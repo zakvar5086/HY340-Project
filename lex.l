@@ -461,8 +461,8 @@ int main(int argc, char *argv[]) {
 
     yyin = input_file;
     if (output_file != stdout) {
-        stdout = output_file;
         printf("Output written in file\n");
+        stdout = output_file;
     }
 
     int token;

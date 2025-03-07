@@ -14,3 +14,4 @@ alpha.dSYM/Contents/Resources/DWARF/alpha
 alpha.dSYM/Contents/Resources/Relocations/aarch64/alpha.yml
 alpha
 lex.yy.c
+output.txt
