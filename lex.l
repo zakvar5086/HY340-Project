@@ -392,6 +392,7 @@ MULTI_LINE_COMM_END     "*/"
 "."         { insertNode(yylineno, PUNCTUATION, yytext); }
 ".."        { insertNode(yylineno, PUNCTUATION, yytext); }
 
+_+[a-zA-Z0-9]*    { fprintf(stderr, "Error: Identifiers starting with \'_\' are not allowed. At line %d\n", yylineno); }
 {ID}        { insertNode(yylineno, IDENTIFIER, yytext); }
 {WHITESPACE} {}
 
