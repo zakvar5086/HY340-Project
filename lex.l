@@ -276,6 +276,7 @@ void freeTokenList() {
 %x COMMENT_MODE
 
 ID          [a-zA-Z_][a-zA-Z0-9_]*
+ILL_ID      _+[a-zA-Z0-9]*
 INT         [0-9]+
 REAL        [0-9]+\.[0-9]+
 STRING      \"([^\"\\]|\\.)*\"?
@@ -392,7 +393,7 @@ MULTI_LINE_COMM_END     "*/"
 "."         { insertNode(yylineno, PUNCTUATION, yytext); }
 ".."        { insertNode(yylineno, PUNCTUATION, yytext); }
 
-_+[a-zA-Z0-9]*    { fprintf(stderr, "Error: Identifiers starting with \'_\' are not allowed. At line %d\n", yylineno); }
+{ILL_ID}    { fprintf(stderr, "Error: Identifiers starting with \'_\' are not allowed. At line %d\n", yylineno); }
 {ID}        { insertNode(yylineno, IDENTIFIER, yytext); }
 {WHITESPACE} {}
 
