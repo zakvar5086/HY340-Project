@@ -347,8 +347,7 @@ MULTI_LINE_COMM_END     "*/"
     int i = 1;
     while ((yytext[i] != '"' && yytext[i] != '\0')) {
         if (yytext[i] == '\\') {
-            i++;
-            switch (yytext[i]) {
+            switch (yytext[++i]) {
                 case 'n':
                     addToBuff('\n');
                     break;
