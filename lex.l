@@ -279,7 +279,8 @@ ID          [a-zA-Z_][a-zA-Z0-9_]*
 ILL_ID      _+[a-zA-Z0-9]*
 INT         [0-9]+
 REAL        [0-9]+\.[0-9]+
-STRING      \"([^\"\\]|\\.)*\"?
+STRING      \"([^\"\\]|\\.)*\"
+UNTERMINATED_STRING \"([^\"\\]|\\.)*
 WHITESPACE  [\t' '\r '\n]* 
 
 SINGLE_LINE_COMM        "//".*
@@ -378,6 +379,8 @@ MULTI_LINE_COMM_END     "*/"
     buf_len = 0;
     buf_size = 0;
 }
+
+{UNTERMINATED_STRING}   { fprintf(stderr, "Unterminated string found in line: %d\n", yylineno); }
 
 "{"         { insertNode(yylineno, PUNCTUATION, yytext); }
 "}"         { insertNode(yylineno, PUNCTUATION, yytext); }
