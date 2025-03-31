@@ -146,6 +146,24 @@ void SymTable_Hide(SymTable *table, unsigned int scope) {
     }
 }
 
+SymTable* SymTable_Initialize(void) {
+    SymTable* table = SymTable_New();
+
+    const char* libfuncs[] = {
+        "print", "input", "objectmemberkeys", "objecttotalmembers", "objectcopy",
+        "totalarguments", "argument", "typeof", "strtonum", "sqrt", "cos", "sin"
+    };
+
+    int num_funcs = sizeof(libfuncs) / sizeof(libfuncs[0]);
+
+    for (int i = 0; i < num_funcs; i++) {
+        SymTable_Insert(table, libfuncs[i], 0, 0, LIBFUNC);
+        printf("Inserted library function '%s' into global scope\n", libfuncs[i]);
+    }
+
+    return table;
+}
+
 void SymTable_Print(SymTable *table) {
     printf("%-20s %-10s %-6s %-5s\n", "Name", "Type", "Line", "Scope");
     printf("-----------------------------------------------------\n");

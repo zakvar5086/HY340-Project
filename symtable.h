@@ -13,6 +13,7 @@ typedef enum SymbolType {
 } SymbolType;
 
 typedef struct SymbolTableEntry {
+
     char *name;
     unsigned int scope;
     unsigned int line;
@@ -25,6 +26,7 @@ typedef struct SymbolTableEntry {
 } SymbolTableEntry;
 
 typedef struct Binding {
+
     char *key;
     SymbolTableEntry *entry;
     struct Binding *next;
@@ -32,6 +34,7 @@ typedef struct Binding {
 } Binding;
 
 typedef struct SymTable {
+
     unsigned int length;
     Binding *buckets[HASH_SIZE];
     SymbolTableEntry *scopeLists[MAX_SCOPE];
@@ -52,6 +55,8 @@ SymbolTableEntry *SymTable_Lookup(SymTable *table, const char *name, unsigned in
 SymbolTableEntry *SymTable_LookupAny(SymTable *table, const char *name);
 
 void SymTable_Hide(SymTable *table, unsigned int scope);
+
+SymTable* SymTable_Initialize(void);
 
 void SymTable_Print(SymTable *table);
 
