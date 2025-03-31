@@ -446,36 +446,4 @@ MULTI_LINE_COMM_END     "*/"
 
 .           { fprintf(stderr, "Line %d: Unrecognized character: %s\n", yylineno, yytext); }
 
-
 %%
-int main(int argc, char *argv[]) {
-    FILE *input_file = stdin;
-    FILE *output_file = stdout;
-
-    if (argc > 1 && !(input_file = fopen(argv[1], "r"))) {
-        fprintf(stderr, "Cannot read file: %s\n", argv[1]);
-        return 1;
-    }
-
-    if (argc > 2 && !(output_file = fopen(argv[2], "w"))) {
-        fprintf(stderr, "Cannot write file: %s\n", argv[2]);
-        return 1;
-    }
-
-    yyin = input_file;
-    if (output_file != stdout) {
-        printf("Output written in file\n");
-        stdout = output_file;
-    }
-
-    int token;
-    while ((token = alpha_yylex(NULL)) != 0) {  }
-
-    printList();
-    freeTokenList();
-
-    if (input_file != stdin) fclose(input_file);
-    if (output_file != stdout) fclose(output_file);
-
-    return 0;
-}
