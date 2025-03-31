@@ -1,10 +1,8 @@
 #ifndef SYMBOL_TABLE_H
 #define SYMBOL_TABLE_H
 
-#include <stdbool.h>
-
 #define HASH_SIZE 509
-#define MAX_SCOPE 256
+#define MAX_SCOPE 100
 
 typedef enum SymbolType {
     GLOBAL_VAR,
@@ -18,39 +16,43 @@ typedef struct SymbolTableEntry {
     char *name;
     unsigned int scope;
     unsigned int line;
-    bool isActive;
+    int isActive;
     SymbolType type;
 
     struct SymbolTableEntry *nextInScope;
+    struct SymbolTableEntry *nextLink;
+
 } SymbolTableEntry;
 
 typedef struct Binding {
     char *key;
     SymbolTableEntry *entry;
     struct Binding *next;
+
 } Binding;
 
 typedef struct SymTable {
     unsigned int length;
     Binding *buckets[HASH_SIZE];
     SymbolTableEntry *scopeLists[MAX_SCOPE];
+
 } SymTable;
 
 
-SymTable *SymTable_new(void);
+SymTable *SymTable_New(void);
 
-void SymTable_free(SymTable *table);
+void SymTable_Free(SymTable *table);
 
 unsigned int SymTable_getLength(SymTable *table);
 
-SymbolTableEntry *SymTable_insert(SymTable *table, const char *name, unsigned int scope, unsigned int line, SymbolType type);
+SymbolTableEntry *SymTable_Insert(SymTable *table, const char *name, unsigned int scope, unsigned int line, SymbolType type);
 
-SymbolTableEntry *SymTable_lookup(SymTable *table, const char *name, unsigned int scope);
+SymbolTableEntry *SymTable_Lookup(SymTable *table, const char *name, unsigned int scope);
 
-SymbolTableEntry *SymTable_lookup_any(SymTable *table, const char *name);
+SymbolTableEntry *SymTable_LookupAny(SymTable *table, const char *name);
 
-void SymTable_hide(SymTable *table, unsigned int scope);
+void SymTable_Hide(SymTable *table, unsigned int scope);
 
-void SymTable_print(SymTable *table);
+void SymTable_Print(SymTable *table);
 
 #endif
