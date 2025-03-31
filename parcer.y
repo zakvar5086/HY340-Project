@@ -12,7 +12,7 @@ int isFunc = 0;
 
 unsigned int currentScope = 0;
 SymTable* symTable;    
-    
+
 %}
 
 %union {
@@ -52,7 +52,7 @@ SymTable* symTable;
 %left LBRACKET RBRACKET
 %left LPAREN RPAREN
 
-%type <symEntry> lvalue id member call
+%type <symEntry> lvalue
 
 %%
 
@@ -99,4 +99,95 @@ term:       LPAREN expr RPAREN
             | DECR lvalue       { if(isFunc){ fprintf(stderr, "\033[1;31m Illegal action. \033[0mCan't increment func \n"); isFunc = 0; } }
             | lvalue DECR       { if(isFunc){ fprintf(stderr, "\033[1;31m Illegal action. \033[0mCan't increment func \n"); isFunc = 0; } }
             | primary
+            ;
+
+assignexpr: lvalue ASSIGN expr
+            ;
+
+primary:    lvalue
+            | call
+            | objectdef
+            | LPAREN funcdef RPAREN
+            | const
+            ;
+
+lvalue:     IDENTIFIER
+            | LOCAL IDENTIFIER
+            | DBL_COLON IDENTIFIER
+            | member
+            ;
+
+member:     lvalue DOT IDENTIFIER
+            | lvalue LBRACKET expr RBRACKET
+            | call DOT IDENTIFIER
+            | call LBRACKET expr RBRACKET
+            ;
+
+call:       call LPAREN elist RPAREN
+            | lvalue callsuffix
+            | LPAREN funcdef RPAREN LPAREN elist RPAREN
+            ;
+
+callsuffix: normcall
+            | methodcall
+            ;
+
+normcall:   LPAREN elist RPAREN
+            ;
+
+methodcall: DBL_DOT IDENTIFIER LPAREN elist RPAREN
+            ;
+
+elist:      expr elist_expr
+            ;
+
+elist_expr: COMMA expr elist_expr
+            ;
+
+objectdef:  LBRACKET elist RBRACKET
+            | LBRACKET indexed RBRACKET
+            ;
+
+indexed:    indexedelem indexedelem_list
+            ;
+
+indexedelem_list:   COMMA indexedelem indexedelem_list
+                    ;
+
+indexedelem:        LBRACE expr COLON expr RBRACE
+                    ;
+
+block:      LBRACE stmt_list RBRACE
+            | LBRACE RBRACE
+            ;
+
+funcdef:    FUNCTION IDENTIFIER LPAREN id_list RPAREN block
+            | LPAREN id_list RPAREN block
+            ;
+
+const:      INTCONST
+            | REALCONST
+            | STRINGCONST
+            | NIL
+            | TRUE
+            | FALSE
+            ;
+
+id_list:    IDENTIFIER id_list_list
+            ;
+id_list_list:       COMMA IDENTIFIER id_list_list
+                    ;
+
+ifstmt:     IF LPAREN expr RPAREN stmt ELSE stmt
+            | IF LPAREN expr RPAREN stmt
+            ;
+
+whilestmt:  WHILE LPAREN expr RPAREN stmt
+            ;
+
+forstmt:    FOR LPAREN elist SEMICOLON expr SEMICOLON elist RPAREN stmt
+            ;
+
+returnstmt: RETURN expr SEMICOLON
+            | RETURN SEMICOLON
             ;
