@@ -67,15 +67,15 @@ stmt:       expr SEMICOLON
             | whilestmt
             | forstmt
             | returnstmt
-            | break SEMICOLON
-            | continue SEMICOLON
+            | BREAK SEMICOLON
+            | CONTINUE SEMICOLON
             | block
             | funcdef
             | SEMICOLON
             ;
 
 expr:       assignexpr
-            | expr ADD expr
+            | expr PLUS expr
             | expr MINUS expr
             | expr MULTIPLY expr
             | expr DIVIDE expr
