@@ -16,3 +16,7 @@ alpha
 lex.yy.c
 output.txt
 test.c
+parser.tab.c
+parser.tab.h
+test.alpha
+alpha_parser

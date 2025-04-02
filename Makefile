@@ -1,19 +1,13 @@
-CC      = gcc
-FLEX    = flex
+all: alpha_parser
 
-CFLAGS  = -Wall -g -Wno-unused-function
+alpha_parser: lex.yy.c parser.tab.c symtablehash.c
+	gcc -o alpha_parser lex.yy.c parser.tab.c symtablehash.c -ll
 
-LEX_FILE = lex.l
-C_FILE   = lex.yy.c
-EXE      = alpha
+parser.tab.c parser.tab.h: parser.y
+	bison -d parser.y
 
-all: $(EXE)
-
-$(EXE): $(C_FILE)
-	$(CC) $(CFLAGS) -o $(EXE) $(C_FILE)
-
-$(C_FILE): $(LEX_FILE)
-	$(FLEX) $(LEX_FILE)
+lex.yy.c: lex.l parser.tab.h
+	flex lex.l
 
 clean:
-	rm -f $(EXE) $(C_FILE)
+	rm -f alpha_parser lex.yy.c parser.tab.* *.o

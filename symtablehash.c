@@ -60,10 +60,10 @@ unsigned int SymTable_getLength(SymTable *table) {
     return table->length;
 }
 
-SymbolTableEntry *SymTable_Insert(SymTable *table, const char *name, unsigned int scope, unsigned int line, SymbolType type) {
+SymTableEntry *SymTable_Insert(SymTable *table, const char *name, unsigned int scope, unsigned int line, SymbolType type) {
     
-    SymbolTableEntry *existing;
-    SymbolTableEntry *entry;
+    SymTableEntry *existing;
+    SymTableEntry *entry;
     Binding *pNewBinding;
     
     assert(table);
@@ -72,7 +72,7 @@ SymbolTableEntry *SymTable_Insert(SymTable *table, const char *name, unsigned in
     existing = SymTable_Lookup(table, name, scope);
     if(existing && existing->isActive) return NULL;
 
-    entry = malloc(sizeof(SymbolTableEntry));
+    entry = malloc(sizeof(SymTableEntry));
     assert(entry);
 
     entry->name = strdup(name);
@@ -101,9 +101,9 @@ SymbolTableEntry *SymTable_Insert(SymTable *table, const char *name, unsigned in
     return entry;
 }
 
-SymbolTableEntry *SymTable_Lookup(SymTable *table, const char *name, unsigned int scope) {
+SymTableEntry *SymTable_Lookup(SymTable *table, const char *name, unsigned int scope) {
     
-    SymbolTableEntry *pCurrent;
+    SymTableEntry *pCurrent;
     
     assert(table);
     assert(name);
@@ -116,9 +116,9 @@ SymbolTableEntry *SymTable_Lookup(SymTable *table, const char *name, unsigned in
     return NULL;
 }
 
-SymbolTableEntry *SymTable_LookupAny(SymTable *table, const char *name) {
+SymTableEntry *SymTable_LookupAny(SymTable *table, const char *name) {
     
-    SymbolTableEntry *pCurrent;
+    SymTableEntry *pCurrent;
     
     assert(table);
     assert(name);
@@ -135,7 +135,7 @@ SymbolTableEntry *SymTable_LookupAny(SymTable *table, const char *name) {
 
 void SymTable_Hide(SymTable *table, unsigned int scope) {
 
-    SymbolTableEntry *pCurrent;
+    SymTableEntry *pCurrent;
 
     assert(table);
 
@@ -154,12 +154,8 @@ SymTable* SymTable_Initialize(void) {
         "totalarguments", "argument", "typeof", "strtonum", "sqrt", "cos", "sin"
     };
 
-    int num_funcs = sizeof(libfuncs) / sizeof(libfuncs[0]);
-
-    for (int i = 0; i < num_funcs; i++) {
+    for (int i = 0; i < 12; i++) 
         SymTable_Insert(table, libfuncs[i], 0, 0, LIBFUNC);
-        printf("Inserted library function '%s' into global scope\n", libfuncs[i]);
-    }
 
     return table;
 }
@@ -168,16 +164,16 @@ void SymTable_Print(SymTable *table) {
     printf("%-20s %-10s %-6s %-5s\n", "Name", "Type", "Line", "Scope");
     printf("-----------------------------------------------------\n");
     for (int s = 0; s < MAX_SCOPE; s++) {
-        SymbolTableEntry *curr = table->scopeLists[s];
+        SymTableEntry *curr = table->scopeLists[s];
         while (curr) {
-            if (curr->isActive) {
+//            if (curr->isActive) {
                 const char *typeStr =
                     curr->type == GLOBAL_VAR ? "global" :
                     curr->type == LOCAL_VAR ? "local" :
                     curr->type == FORMAL ? "formal" :
                     curr->type == USERFUNC ? "userfunc" : "libfunc";
                 printf("%-20s %-10s %-6u %-5u\n", curr->name, typeStr, curr->line, curr->scope);
-            }
+//            }
             curr = curr->nextInScope;
         }
     }

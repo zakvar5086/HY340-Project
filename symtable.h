@@ -12,7 +12,7 @@ typedef enum SymbolType {
     LIBFUNC
 } SymbolType;
 
-typedef struct SymbolTableEntry {
+typedef struct SymTableEntry {
 
     char *name;
     unsigned int scope;
@@ -20,15 +20,15 @@ typedef struct SymbolTableEntry {
     int isActive;
     SymbolType type;
 
-    struct SymbolTableEntry *nextInScope;
-    struct SymbolTableEntry *nextLink;
+    struct SymTableEntry *nextInScope;
+    struct SymTableEntry *nextLink;
 
-} SymbolTableEntry;
+} SymTableEntry;
 
 typedef struct Binding {
 
     char *key;
-    SymbolTableEntry *entry;
+    SymTableEntry *entry;
     struct Binding *next;
 
 } Binding;
@@ -37,7 +37,7 @@ typedef struct SymTable {
 
     unsigned int length;
     Binding *buckets[HASH_SIZE];
-    SymbolTableEntry *scopeLists[MAX_SCOPE];
+    SymTableEntry *scopeLists[MAX_SCOPE];
 
 } SymTable;
 
@@ -48,11 +48,11 @@ void SymTable_Free(SymTable *table);
 
 unsigned int SymTable_getLength(SymTable *table);
 
-SymbolTableEntry *SymTable_Insert(SymTable *table, const char *name, unsigned int scope, unsigned int line, SymbolType type);
+SymTableEntry *SymTable_Insert(SymTable *table, const char *name, unsigned int scope, unsigned int line, SymbolType type);
 
-SymbolTableEntry *SymTable_Lookup(SymTable *table, const char *name, unsigned int scope);
+SymTableEntry *SymTable_Lookup(SymTable *table, const char *name, unsigned int scope);
 
-SymbolTableEntry *SymTable_LookupAny(SymTable *table, const char *name);
+SymTableEntry *SymTable_LookupAny(SymTable *table, const char *name);
 
 void SymTable_Hide(SymTable *table, unsigned int scope);
 
