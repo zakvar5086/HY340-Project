@@ -93,10 +93,16 @@ SymTableEntry *SymTable_Insert(SymTable *table, const char *name, unsigned int s
     assert(pNewBinding->key);
 
     pNewBinding->entry = entry;
-    unsigned int index = SymTable_hash(name);
-    pNewBinding->next = table->buckets[index];
-    table->buckets[index] = pNewBinding;
+    pNewBinding->next = NULL;
 
+    unsigned int index = SymTable_hash(name);
+    
+    if (!table->buckets[index]) table->buckets[index] = pNewBinding;
+    else {
+        Binding *curr = table->buckets[index];
+        while (curr->next != NULL) curr = curr->next;
+        curr->next = pNewBinding;
+    }
     table->length++;
     return entry;
 }
@@ -161,19 +167,23 @@ SymTable* SymTable_Initialize(void) {
 }
 
 void SymTable_Print(SymTable *table) {
-    printf("%-20s %-10s %-6s %-5s\n", "Name", "Type", "Line", "Scope");
-    printf("-----------------------------------------------------\n");
     for (int s = 0; s < MAX_SCOPE; s++) {
         SymTableEntry *curr = table->scopeLists[s];
+        if (!curr) continue;
+
+        printf("\n  ------------  Scope #%d  ------------\n", s);
+
         while (curr) {
-//            if (curr->isActive) {
-                const char *typeStr =
-                    curr->type == GLOBAL_VAR ? "global" :
-                    curr->type == LOCAL_VAR ? "local" :
-                    curr->type == FORMAL ? "formal" :
-                    curr->type == USERFUNC ? "userfunc" : "libfunc";
-                printf("%-20s %-10s %-6u %-5u\n", curr->name, typeStr, curr->line, curr->scope);
-//            }
+            const char *typeStr =
+                curr->type == GLOBAL_VAR ? "global variable" :
+                curr->type == LOCAL_VAR  ? "local variable" :
+                curr->type == FORMAL     ? "formal argument" :
+                curr->type == USERFUNC   ? "user function" :
+                curr->type == LIBFUNC    ? "library function" : "unknown";
+
+            printf("\"%s\" [%s] (line %u) (scope %u)\n",
+                   curr->name, typeStr, curr->line, curr->scope);
+
             curr = curr->nextInScope;
         }
     }
