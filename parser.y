@@ -6,8 +6,8 @@
 #include "symtable.h"
 #include "parser.tab.h"
 
-#define YY_DECL int yylex(YYSTYPE *yylval)
-extern int yylex(YYSTYPE *yylval);
+#define YY_DECL int yylex(void)
+extern int yylex(void);
 extern FILE *yyin;
 
 extern int yylineno;
@@ -19,8 +19,6 @@ static int anon_func = 0;
 SymTable* symTable;
 
 %}
-
-%pure-parser
 
 %union {
     char* stringValue;

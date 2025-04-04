@@ -5,7 +5,7 @@
 #include "symtable.h"
 #include "parser.tab.h"
 
-#define YY_DECL int yylex(YYSTYPE *yylval)
+#define YY_DECL int yylex(void)
 
 typedef struct comment_info {
     int start_line;
@@ -90,8 +90,8 @@ MULTI_LINE_COMM_END     "*/"
 ">="        { return GREATER_EQUAL; }
 "<="        { return LESS_EQUAL; }
 
-{INT}       { yylval->intValue = atoi(yytext); return INTCONST; }
-{REAL}      { yylval->realValue = atof(yytext); return REALCONST; }
+{INT}       { yylval.intValue = atoi(yytext); return INTCONST; }
+{REAL}      { yylval.realValue = atof(yytext); return REALCONST; }
 
 {STRING} {
     buf_size = 16;
@@ -122,7 +122,7 @@ MULTI_LINE_COMM_END     "*/"
         i++;
     }
 
-    yylval->stringValue = string_buf;
+    yylval.stringValue = string_buf;
     return STRINGCONST;
 }
 
@@ -142,7 +142,7 @@ MULTI_LINE_COMM_END     "*/"
 ".."        { return DBL_DOT; }
 
 {ILL_ID}    { fprintf(stderr, "Error: Identifiers starting with \'_\' are not allowed. At line %d\n", yylineno); }
-{ID}        { yylval->stringValue = strdup(yytext); return IDENTIFIER; }
+{ID}        { yylval.stringValue = strdup(yytext); return IDENTIFIER; }
 
 {WHITESPACE} {}
 
