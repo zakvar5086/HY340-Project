@@ -17,6 +17,7 @@ int isFunc = 0;
 unsigned int currentScope = 0;
 static int anon_func = 0;
 SymTable* symTable;
+
 %}
 
 %pure-parser
@@ -48,6 +49,7 @@ SymTable* symTable;
 
 %nonassoc LOWER_THAN_ELSE
 %nonassoc ELSE
+
 %right ASSIGN
 %left OR
 %left AND
@@ -67,7 +69,8 @@ SymTable* symTable;
 program:    stmt_list
             ;
 
-stmt_list:  | stmt stmt_list
+stmt_list:  
+            | stmt stmt_list
             ;
 
 stmt:       expr SEMICOLON
@@ -102,14 +105,17 @@ expr:       assignexpr
 term:       LPAREN expr RPAREN
             | UMINUS expr
             | NOT expr
-            | INCR lvalue       { if(isFunc){ fprintf(stderr, "\033[1;31m Illegal action. \033[0mCan't increment func \n"); isFunc = 0; } }
-            | lvalue INCR       { if(isFunc){ fprintf(stderr, "\033[1;31m Illegal action. \033[0mCan't increment func \n"); isFunc = 0; } }
-            | DECR lvalue       { if(isFunc){ fprintf(stderr, "\033[1;31m Illegal action. \033[0mCan't increment func \n"); isFunc = 0; } }
-            | lvalue DECR       { if(isFunc){ fprintf(stderr, "\033[1;31m Illegal action. \033[0mCan't increment func \n"); isFunc = 0; } }
+            | INCR lvalue       { if(isFunc){ isFunc = 0; } }
+            | lvalue INCR       { if(isFunc){ isFunc = 0; } }
+            | DECR lvalue       { if(isFunc){ isFunc = 0; } }
+            | lvalue DECR       { if(isFunc){ isFunc = 0; } }
             | primary
             ;
 
-assignexpr: lvalue ASSIGN expr
+assignexpr: lvalue ASSIGN expr {
+                if($1 && ($1->type == USERFUNC || $1->type == LIBFUNC))
+                    fprintf(stderr, "\033[1;31mError:\033[0m Cannot assign to function (line %d)\n", yylineno);                
+            }
             ;
 
 primary:    lvalue
@@ -121,16 +127,10 @@ primary:    lvalue
 
 lvalue:     IDENTIFIER { 
                 SymTableEntry *pCurr = SymTable_LookupAny(symTable, $1);
-
-                /* TODO: Maybe check if instead of pCurr to use $$ */
-
-                if(!pCurr){
-                    pCurr = SymTable_Insert(symTable, $1, 0, yylineno, GLOBAL_VAR);
-                    fprintf(stdout, "Inserted global variable '%s' at line %d\n", $1, yylineno);
-                }
-                else if(pCurr->type == USERFUNC || pCurr->type == LIBFUNC){
-                    isFunc = 1;
-                }
+                int varType = (currentScope == 0) ? GLOBAL_VAR : LOCAL_VAR;
+                
+                if(!pCurr) pCurr = SymTable_Insert(symTable, $1, currentScope, yylineno, varType);
+                else if(pCurr->type == USERFUNC || pCurr->type == LIBFUNC) isFunc = 1;
                 $$ = pCurr;
             }
             | LOCAL IDENTIFIER {
@@ -146,7 +146,6 @@ lvalue:     IDENTIFIER {
                         $$ = NULL;
                     } else {
                         SymTableEntry *pNew = SymTable_Insert(symTable, $2, currentScope, yylineno, LOCAL_VAR);
-                        fprintf(stdout, "Inserted local variable %s in scope %u at line %d\n", $2, currentScope, yylineno);
                         $$ = pNew;
                     }
                 }
@@ -185,14 +184,20 @@ normcall:   LPAREN elist RPAREN
 methodcall: DBL_DOT IDENTIFIER LPAREN elist RPAREN
             ;
 
-elist:      expr elist_expr
+elist:      
+            | expr elist_expr
             ;
 
-elist_expr: COMMA expr elist_expr
-            |
+elist_expr: 
+            | COMMA expr elist_expr
             ;
 
-objectdef:  LBRACKET elist RBRACKET
+/* This rules helps with conflict of objectdef */
+notempty_elist:     expr elist_expr
+                    ;
+
+objectdef:  LBRACKET RBRACKET
+            | LBRACKET notempty_elist RBRACKET
             | LBRACKET indexed RBRACKET
             ;
 
@@ -206,55 +211,56 @@ indexedelem_list:   COMMA indexedelem indexedelem_list
 indexedelem:        LBRACE expr COLON expr RBRACE
                     ;
 
-block:      LBRACE { ++currentScope; } stmt_list RBRACE { currentScope--; SymTable_Hide(symTable, currentScope); }
+block:      LBRACE { ++currentScope; } stmt_list RBRACE { SymTable_Hide(symTable, currentScope); --currentScope; }
             ;
 
-funcdef:    FUNCTION IDENTIFIER LPAREN {
+funcdef:    FUNCTION IDENTIFIER {
                 SymTableEntry *pCurr = SymTable_Lookup(symTable, $2, currentScope);
                 SymTableEntry *libFunc = SymTable_Lookup(symTable, $2, 0);
                 
-                if(pCurr) fprintf(stderr, "\033[1;31mError:\033[0m Function '%s' already defined in scope %u(line %d)\n", $2, currentScope, yylineno);
-                else if(libFunc && libFunc->type == LIBFUNC) fprintf(stderr, "\033[1;31mError:\033[0m Cannot shadow a library function. '%s' (line %d)\n", $2, yylineno);
-                else {
+                if(pCurr && pCurr->type != GLOBAL_VAR){
+                    fprintf(stderr, "\033[1;31mError:\033[0m Function '%s' already defined in scope %u (line %d)\n", $2, currentScope, yylineno);
+                } else if(libFunc && libFunc->type == LIBFUNC){
+                    fprintf(stderr, "\033[1;31mError:\033[0m Cannot shadow a library function. '%s' (line %d)\n", $2, yylineno);
+                } else if(pCurr && pCurr->type == GLOBAL_VAR){
+                    pCurr->type = USERFUNC;
+                } else {
                     SymTable_Insert(symTable, $2, currentScope, yylineno, USERFUNC);
-                    ++currentScope;
                 }
-            } paramlist RPAREN block {
-                currentScope--;
-                SymTable_Hide(symTable, currentScope);
-            }
-            | FUNCTION LPAREN paramlist {
+
+            } LPAREN { ++currentScope; } idlist RPAREN { --currentScope; } block { $$ = NULL; }
+            | FUNCTION {
                 ++anon_func;
                 char anon_func_name[16];
-                snprintf(anon_func_name, sizeof(anon_func_name), "_anon_func_%d", anon_func);
+                snprintf(anon_func_name, sizeof(anon_func_name), "$f%d", anon_func);
                 
                 SymTable_Insert(symTable, anon_func_name, currentScope, yylineno, USERFUNC);
-                ++currentScope;
-                fprintf(stdout, "Inserted anon func '%s' in scope %u(line %d)\n", anon_func_name, currentScope, yylineno);
-            } RPAREN block {
-                currentScope--;
-                SymTable_Hide(symTable, currentScope);
-            }
+            } LPAREN { ++currentScope; } idlist RPAREN { --currentScope; } block { $$ = NULL; }
             ;
 
-paramlist:  | IDENTIFIER { 
-                SymTableEntry *pCurr = SymTable_Lookup(symTable, $1, currentScope);
-                if(pCurr) fprintf(stderr, "\033[1;31mError:\033[0m Formal '%s' redeclared in scope %u(line %d)\n", $1, currentScope, yylineno);
+idlist:
+            | IDENTIFIER { 
+                SymTableEntry *libFunc = SymTable_Lookup(symTable, $1, 0);
+                if(libFunc && libFunc->type == LIBFUNC) fprintf(stderr, "\033[1;31mError:\033[0m Cannot shadow a library function. '%s' (line %d)\n", $1, yylineno);
                 else {
-                    SymTable_Insert(symTable, $1, currentScope, yylineno, FORMAL);
-                    fprintf(stdout, "Inserted formal parameter '%s' in scope %u(line %d)\n", $1, currentScope, yylineno);
+                    SymTableEntry *pCurr = SymTable_Lookup(symTable, $1, currentScope);
+                    if(pCurr) fprintf(stderr, "\033[1;31mError:\033[0m Formal '%s' redeclared in scope %u (line %d)\n", $1, currentScope, yylineno);
+                    else SymTable_Insert(symTable, $1, currentScope, yylineno, FORMAL);
                 }
-            } paramlist_tail
+
+            } idlist_tail
             ;
 
-paramlist_tail:     | COMMA IDENTIFIER { 
-                        SymTableEntry *pCurr = SymTable_Lookup(symTable, $2, currentScope);
-                        if(pCurr) fprintf(stderr, "\033[1;31mError:\033[0m Formal '%s' redeclared in scope %u(line %d)\n", $2, currentScope, yylineno);
+idlist_tail:
+                    | COMMA IDENTIFIER { 
+                        SymTableEntry *libFunc = SymTable_Lookup(symTable, $2, 0);
+                        if(libFunc && libFunc->type == LIBFUNC) fprintf(stderr, "\033[1;31mError:\033[0m Cannot shadow a library function. '%s' (line %d)\n", $2, yylineno);
                         else {
-                            SymTable_Insert(symTable, $2, currentScope, yylineno, FORMAL);
-                            fprintf(stdout, "Inserted formal parameter '%s' in scope %u(line %d)\n", $2, currentScope, yylineno);
+                            SymTableEntry *pCurr = SymTable_Lookup(symTable, $2, currentScope);
+                            if(pCurr) fprintf(stderr, "\033[1;31mError:\033[0m Formal '%s' redeclared in scope %u (line %d)\n", $2, currentScope, yylineno);
+                            else SymTable_Insert(symTable, $2, currentScope, yylineno, FORMAL);
                         }
-                    } paramlist_tail
+                    } idlist_tail
                     ;
 
 const:      INTCONST
@@ -282,17 +288,25 @@ returnstmt: RETURN expr SEMICOLON
 %%
 
 int main(int argc, char **argv) {
+    FILE *input_file = stdin;
+    FILE *output_file = stdout;
+    
+    if (argc > 1 && !(input_file = fopen(argv[1], "r"))) {
+        fprintf(stderr, "Cannot read file: %s\n", argv[1]);
+        return 1;
+    }
+
+    if (argc > 2 && !(output_file = fopen(argv[2], "w"))) {
+        fprintf(stderr, "Cannot write file: %s\n", argv[2]);
+        return 1;
+    }
+
     symTable = SymTable_Initialize();
 
-    printf("\033[1;34m[INFO]\033[0m Starting Alpha parser...\n");
-
-    if (argc > 1) {
-        FILE *inputFile = fopen(argv[1], "r");
-        if (!inputFile) {
-            perror("Failed to open input file");
-            return 1;
-        }
-        yyin = inputFile;
+    yyin = input_file;
+    if (output_file != stdout) {
+        printf("Output written in file\n");
+        stdout = output_file;
     }
 
     if (yyparse() == 0) {
@@ -304,6 +318,10 @@ int main(int argc, char **argv) {
     printf("\nFinal Symbol Table:\n");
     SymTable_Print(symTable);
     SymTable_Free(symTable);
+
+    if (input_file != stdin) fclose(input_file);
+    if (output_file != stdout) fclose(output_file);
+
     return 0;
 }
 

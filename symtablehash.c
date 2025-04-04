@@ -61,16 +61,15 @@ unsigned int SymTable_getLength(SymTable *table) {
 }
 
 SymTableEntry *SymTable_Insert(SymTable *table, const char *name, unsigned int scope, unsigned int line, SymbolType type) {
-    
     SymTableEntry *existing;
     SymTableEntry *entry;
     Binding *pNewBinding;
-    
+
     assert(table);
     assert(name);
 
     existing = SymTable_Lookup(table, name, scope);
-    if(existing && existing->isActive) return NULL;
+    if (existing && existing->isActive) return NULL;
 
     entry = malloc(sizeof(SymTableEntry));
     assert(entry);
@@ -82,9 +81,20 @@ SymTableEntry *SymTable_Insert(SymTable *table, const char *name, unsigned int s
     entry->line = line;
     entry->isActive = 1;
     entry->type = type;
+    entry->nextInScope = NULL;
 
-    entry->nextInScope = table->scopeLists[scope];
-    table->scopeLists[scope] = entry;
+    SymTableEntry **scopeHead = &table->scopeLists[scope];
+    if (*scopeHead == NULL || (*scopeHead)->line > line) {
+        entry->nextInScope = *scopeHead;
+        *scopeHead = entry;
+    } else {
+        SymTableEntry *curr = *scopeHead;
+        while (curr->nextInScope && curr->nextInScope->line <= line) {
+            curr = curr->nextInScope;
+        }
+        entry->nextInScope = curr->nextInScope;
+        curr->nextInScope = entry;
+    }
 
     pNewBinding = malloc(sizeof(Binding));
     assert(pNewBinding);
@@ -96,16 +106,24 @@ SymTableEntry *SymTable_Insert(SymTable *table, const char *name, unsigned int s
     pNewBinding->next = NULL;
 
     unsigned int index = SymTable_hash(name);
-    
-    if (!table->buckets[index]) table->buckets[index] = pNewBinding;
-    else {
-        Binding *curr = table->buckets[index];
-        while (curr->next != NULL) curr = curr->next;
+    Binding **bucketHead = &table->buckets[index];
+
+    if (*bucketHead == NULL || (*bucketHead)->entry->line > line) {
+        pNewBinding->next = *bucketHead;
+        *bucketHead = pNewBinding;
+    } else {
+        Binding *curr = *bucketHead;
+        while (curr->next && curr->next->entry->line <= line) {
+            curr = curr->next;
+        }
+        pNewBinding->next = curr->next;
         curr->next = pNewBinding;
     }
+
     table->length++;
     return entry;
 }
+
 
 SymTableEntry *SymTable_Lookup(SymTable *table, const char *name, unsigned int scope) {
     
@@ -144,6 +162,7 @@ void SymTable_Hide(SymTable *table, unsigned int scope) {
     SymTableEntry *pCurrent;
 
     assert(table);
+    if(scope == 0) return;
 
     pCurrent = table->scopeLists[scope];
     while (pCurrent) {
