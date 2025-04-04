@@ -218,15 +218,10 @@ funcdef:    FUNCTION IDENTIFIER {
                 SymTableEntry *pCurr = SymTable_Lookup(symTable, $2, currentScope);
                 SymTableEntry *libFunc = SymTable_Lookup(symTable, $2, 0);
                 
-                if(pCurr && pCurr->type != GLOBAL_VAR){
-                    fprintf(stderr, "\033[1;31mError:\033[0m Function '%s' already defined in scope %u (line %d)\n", $2, currentScope, yylineno);
-                } else if(libFunc && libFunc->type == LIBFUNC){
-                    fprintf(stderr, "\033[1;31mError:\033[0m Cannot shadow a library function. '%s' (line %d)\n", $2, yylineno);
-                } else if(pCurr && pCurr->type == GLOBAL_VAR){
-                    pCurr->type = USERFUNC;
-                } else {
-                    SymTable_Insert(symTable, $2, currentScope, yylineno, USERFUNC);
-                }
+                if(pCurr && pCurr->type != GLOBAL_VAR) fprintf(stderr, "\033[1;31mError:\033[0m Function '%s' already defined in scope %u (line %d)\n", $2, currentScope, yylineno);
+                else if(libFunc && libFunc->type == LIBFUNC) fprintf(stderr, "\033[1;31mError:\033[0m Cannot shadow a library function. '%s' (line %d)\n", $2, yylineno);
+                else if(pCurr && pCurr->type == GLOBAL_VAR) pCurr->type = USERFUNC;
+                else SymTable_Insert(symTable, $2, currentScope, yylineno, USERFUNC);
 
             } LPAREN { ++currentScope; } idlist RPAREN { --currentScope; } block { $$ = NULL; }
             | FUNCTION {
@@ -309,13 +304,9 @@ int main(int argc, char **argv) {
         stdout = output_file;
     }
 
-    if (yyparse() == 0) {
-        printf("\033[1;32m[SUCCESS]\033[0m Parsing completed successfully.\n");
-    } else {
-        printf("\033[1;31m[FAILURE]\033[0m Parsing failed.\n");
-    }
+    if (yyparse() == 0) printf("\033[1;32m[SUCCESS]\033[0m Parsing completed successfully.\n");
+    else printf("\033[1;31m[FAILURE]\033[0m Parsing failed.\n");
 
-    printf("\nFinal Symbol Table:\n");
     SymTable_Print(symTable);
     SymTable_Free(symTable);
 
