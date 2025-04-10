@@ -16,7 +16,6 @@ void yyerror(const char *msg);
 unsigned int currentScope = 0;
 int isFunctionScopes[MAX_SCOPE] = {0};
 int isLoop = 0;
-int isBlock = 0;
 static int anon_func = 0;
 SymTable* symTable;
 
@@ -173,7 +172,7 @@ lvalue:     IDENTIFIER {
                             if(isFunctionScope(currentScope) &&
                                 isFunctionScope(parentScope) &&
                                 (outer->type == LOCAL_VAR || outer->type == FORMAL) &&
-                                isBlock == 0 &&
+                                isLoop == 0 &&
                                 outer->isActive) {
                                 fprintf(stderr, "\033[1;31mError:\033[0m Cannot access symbol '%s' at line %d. In lvalue\n", $1, yylineno);
                                 $$ = NULL;
