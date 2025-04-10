@@ -156,31 +156,33 @@ lvalue:     IDENTIFIER {
 
                 if(pCurr) $$ = pCurr;
                 else {
-                    pCurr = SymTable_Lookup(symTable, $1, 0);
+                    int found = 0;
+                    int scope;
+                    for(scope = currentScope - 1; scope >= 0; scope--) {
+                        SymTableEntry *outer = SymTable_Lookup(symTable, $1, scope);
+                        if(!outer) continue;
 
-                    if(pCurr && (pCurr->type != GLOBAL_VAR)) $$ = pCurr;
-                    else if(currentScope == 0) $$ = SymTable_Insert(symTable, $1, currentScope, yylineno, GLOBAL_VAR);
-                    else {
-                        int found = 0;
-                        int scope;
-                        for(scope = currentScope - 1; scope >= 0; scope--) {
-                            SymTableEntry *outer = SymTable_Lookup(symTable, $1, scope);
-                            if(!outer) continue;
-                            found = 1;
-                            int parentScope = (currentScope == 0) ? 0 : currentScope - 1;
-                            
-                            if(isFunctionScope(currentScope) &&
-                                isFunctionScope(parentScope) &&
-                                (outer->type == LOCAL_VAR || outer->type == FORMAL) &&
-                                isLoop == 0 &&
-                                outer->isActive) {
-                                fprintf(stderr, "\033[1;31mError:\033[0m Cannot access symbol '%s' at line %d. In lvalue\n", $1, yylineno);
-                                $$ = NULL;
-                            }
-                            $$ = outer;
-                            break;
-                        }
-                        if(!found) $$ = SymTable_Insert(symTable, $1, currentScope, yylineno, varType);
+                        found = 1;
+                        int parentScope = (currentScope == 0) ? 0 : currentScope - 1;
+                        
+                        if(isFunctionScope(currentScope) &&
+                            isFunctionScope(parentScope) &&
+                            (outer->type == LOCAL_VAR || outer->type == FORMAL) &&
+                            isLoop == 0 &&
+                            outer->isActive) {
+                            fprintf(stderr, "\033[1;31mError:\033[0m Cannot access symbol '%s' at line %d.\n", $1, yylineno);
+                            $$ = NULL;
+                        } else $$ = outer;
+                        break;
+                    }
+
+                    if(!found) {
+                        pCurr = SymTable_Lookup(symTable, $1, 0);
+                        if(pCurr && (pCurr->type == LIBFUNC || pCurr->type == USERFUNC || pCurr->type == GLOBAL_VAR))
+                            $$ = pCurr;
+                        else if(currentScope == 0) $$ = SymTable_Insert(symTable, $1, currentScope, yylineno, GLOBAL_VAR);
+                        else $$ = SymTable_Insert(symTable, $1, currentScope, yylineno, varType);
+
                     }
                 }
             }
@@ -195,7 +197,7 @@ lvalue:     IDENTIFIER {
                     SymTableEntry *libFunc = SymTable_Lookup(symTable, $2, 0);
 
                     if(libFunc && libFunc->type == LIBFUNC) {
-                        fprintf(stderr, "\033[1;31mError:\033[0m Local shadows library function '%s' (line %d)\n", $2, yylineno);
+                        fprintf(stderr, "\033[1;31mError:\033[0m Symbol shadows library function '%s' (line %d)\n", $2, yylineno);
                         $$ = NULL;
                     } else {
                         SymTableEntry *pNew = SymTable_Insert(symTable, $2, currentScope, yylineno, varType);
@@ -272,7 +274,7 @@ funcdef:    FUNCTION IDENTIFIER {
                 else {
                     SymTableEntry *pCurr = SymTable_Lookup(symTable, $2, currentScope);
                     if(pCurr) {
-                        if(pCurr->type != GLOBAL_VAR) fprintf(stderr, "\033[1;31mError:\033[0m Function '%s' already defined in scope %u (line %d)\n", $2, currentScope, yylineno);
+                        if(pCurr->type != GLOBAL_VAR) fprintf(stderr, "\033[1;31mError:\033[0m Symbol '%s' already defined in scope %u (line %d)\n", $2, currentScope, yylineno);
                         else fprintf(stderr, "\033[1;31mError:\033[0m Symbol '%s' declared in scope %u (line %d)\n", $2, currentScope, yylineno);
                     }
                     else SymTable_Insert(symTable, $2, currentScope, yylineno, USERFUNC);
