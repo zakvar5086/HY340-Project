@@ -12,6 +12,9 @@ Downloads/
 alpha.dSYM/Contents/Info.plist
 alpha.dSYM/Contents/Resources/DWARF/alpha
 alpha.dSYM/Contents/Resources/Relocations/aarch64/alpha.yml
+alpha_parser.dSYM/Contents/Info.plist
+alpha_parser.dSYM/Contents/Resources/DWARF/alpha_parser
+alpha_parser.dSYM/Contents/Resources/Relocations/aarch64/alpha_parser.yml
 alpha
 lex.yy.c
 output.txt
