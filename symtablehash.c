@@ -36,7 +36,7 @@ void SymTable_Free(SymTable *table) {
     
     assert(table);
 
-    for(index = 0; index < HASH_SIZE; index++){
+    for(index = 0; index < HASH_SIZE; index++) {
         pCurrent = table->buckets[index];
 
         while(pCurrent) {
@@ -61,6 +61,7 @@ unsigned int SymTable_getLength(SymTable *table) {
 }
 
 SymTableEntry *SymTable_Insert(SymTable *table, const char *name, unsigned int scope, unsigned int line, SymbolType type) {
+    
     SymTableEntry *existing;
     SymTableEntry *entry;
     Binding *pNewBinding;
@@ -69,7 +70,7 @@ SymTableEntry *SymTable_Insert(SymTable *table, const char *name, unsigned int s
     assert(name);
 
     existing = SymTable_Lookup(table, name, scope);
-    if (existing && existing->isActive) return NULL;
+    if(existing && existing->isActive) return NULL;
 
     entry = malloc(sizeof(SymTableEntry));
     assert(entry);
@@ -84,14 +85,13 @@ SymTableEntry *SymTable_Insert(SymTable *table, const char *name, unsigned int s
     entry->nextInScope = NULL;
 
     SymTableEntry **scopeHead = &table->scopeLists[scope];
-    if (*scopeHead == NULL || (*scopeHead)->line > line) {
+    if(*scopeHead == NULL || (*scopeHead)->line > line) {
         entry->nextInScope = *scopeHead;
         *scopeHead = entry;
     } else {
         SymTableEntry *curr = *scopeHead;
-        while (curr->nextInScope && curr->nextInScope->line <= line) {
-            curr = curr->nextInScope;
-        }
+        while(curr->nextInScope && curr->nextInScope->line <= line) curr = curr->nextInScope;
+
         entry->nextInScope = curr->nextInScope;
         curr->nextInScope = entry;
     }
@@ -108,14 +108,13 @@ SymTableEntry *SymTable_Insert(SymTable *table, const char *name, unsigned int s
     unsigned int index = SymTable_hash(name);
     Binding **bucketHead = &table->buckets[index];
 
-    if (*bucketHead == NULL || (*bucketHead)->entry->line > line) {
+    if(*bucketHead == NULL || (*bucketHead)->entry->line > line) {
         pNewBinding->next = *bucketHead;
         *bucketHead = pNewBinding;
     } else {
         Binding *curr = *bucketHead;
-        while (curr->next && curr->next->entry->line <= line) {
-            curr = curr->next;
-        }
+        while(curr->next && curr->next->entry->line <= line) curr = curr->next;
+
         pNewBinding->next = curr->next;
         curr->next = pNewBinding;
     }
@@ -133,7 +132,7 @@ SymTableEntry *SymTable_Lookup(SymTable *table, const char *name, unsigned int s
     assert(name);
 
     pCurrent = table->scopeLists[scope];
-    while(pCurrent){
+    while(pCurrent) {
         if(pCurrent->isActive && strcmp(pCurrent->name, name) == 0) return pCurrent;
         pCurrent = pCurrent->nextInScope;
     }
@@ -147,10 +146,10 @@ SymTableEntry *SymTable_LookupAny(SymTable *table, const char *name) {
     assert(table);
     assert(name);
 
-    for(int s = MAX_SCOPE - 1; s >= 0; s--){
+    for(int s = MAX_SCOPE - 1; s >= 0; s--) {
         pCurrent = table->scopeLists[s];
-        while(pCurrent){
-            if (pCurrent->isActive && strcmp(pCurrent->name, name) == 0) return pCurrent;
+        while(pCurrent) {
+            if(pCurrent->isActive && strcmp(pCurrent->name, name) == 0) return pCurrent;
             pCurrent = pCurrent->nextInScope;
         }
     }
@@ -165,7 +164,7 @@ void SymTable_Hide(SymTable *table, unsigned int scope) {
     if(scope == 0) return;
 
     pCurrent = table->scopeLists[scope];
-    while (pCurrent) {
+    while(pCurrent) {
         pCurrent->isActive = 0;
         pCurrent = pCurrent->nextInScope;
     }
@@ -179,20 +178,19 @@ SymTable* SymTable_Initialize(void) {
         "totalarguments", "argument", "typeof", "strtonum", "sqrt", "cos", "sin"
     };
 
-    for (int i = 0; i < 12; i++) 
-        SymTable_Insert(table, libfuncs[i], 0, 0, LIBFUNC);
+    for(int i = 0; i < 12; i++) SymTable_Insert(table, libfuncs[i], 0, 0, LIBFUNC);
 
     return table;
 }
 
 void SymTable_Print(SymTable *table) {
-    for (int s = 0; s < MAX_SCOPE; s++) {
+    for(int s = 0; s < MAX_SCOPE; s++) {
         SymTableEntry *curr = table->scopeLists[s];
-        if (!curr) continue;
+        if(!curr) continue;
 
-        printf("\n  ------------  Scope #%d  ------------\n", s);
+        printf("\n---------------  Scope #%d  ---------------\n", s);
 
-        while (curr) {
+        while(curr) {
             const char *typeStr =
                 curr->type == GLOBAL_VAR ? "global variable" :
                 curr->type == LOCAL_VAR  ? "local variable" :

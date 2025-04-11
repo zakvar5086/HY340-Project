@@ -162,11 +162,8 @@ lvalue:     IDENTIFIER {
                         SymTableEntry *outer = SymTable_Lookup(symTable, $1, scope);
                         if(!outer) continue;
 
-                        found = 1;
-                        int parentScope = (currentScope == 0) ? 0 : currentScope - 1;
-                        
+                        found = 1;                        
                         if(isFunctionScope(currentScope) &&
-                            isFunctionScope(parentScope) &&
                             (outer->type == LOCAL_VAR || outer->type == FORMAL) &&
                             isLoop == 0 &&
                             outer->isActive) {
