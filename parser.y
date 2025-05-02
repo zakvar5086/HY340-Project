@@ -34,21 +34,13 @@ int isFunctionScope(unsigned int scope) {
 }
 
 %token <stringValue> IDENTIFIER STRINGCONST
-
 %token <intValue> INTCONST
-
 %token <realValue> REALCONST
-
 %token IF ELSE WHILE FOR FUNCTION RETURN BREAK CONTINUE
-
 %token AND NOT OR LOCAL TRUE FALSE NIL
-
 %token ASSIGN PLUS MINUS MULTIPLY DIVIDE MOD
-
 %token EQUAL NEQUAL INCR DECR GREATER LESS GREATER_EQUAL LESS_EQUAL
-
 %token LBRACE RBRACE LBRACKET RBRACKET LPAREN RPAREN
-
 %token SEMICOLON COMMA COLON DBL_COLON DOT DBL_DOT
 
 %nonassoc LOWER_THAN_ELSE
@@ -158,11 +150,11 @@ lvalue:     IDENTIFIER {
                 else {
                     int found = 0;
                     int scope;
-                    for(scope = currentScope - 1; scope >= 0; scope--) {
+                    for(scope = currentScope - 1; scope > 0; scope--) {
                         SymTableEntry *outer = SymTable_Lookup(symTable, $1, scope);
                         if(!outer) continue;
 
-                        found = 1;                        
+                        found = 1;
                         if(isFunctionScope(currentScope) &&
                             (outer->type == LOCAL_VAR || outer->type == FORMAL) &&
                             isLoop == 0 &&
@@ -194,7 +186,7 @@ lvalue:     IDENTIFIER {
                     SymTableEntry *libFunc = SymTable_Lookup(symTable, $2, 0);
 
                     if(libFunc && libFunc->type == LIBFUNC) {
-                        fprintf(stderr, "\033[1;31mError:\033[0m Symbol shadows library function '%s' (line %d)\n", $2, yylineno);
+                        fprintf(stderr, "\033[1;31mError:\033[0m Symbol '%s' shadows library function (line %d)\n", $2, yylineno);
                         $$ = NULL;
                     } else {
                         SymTableEntry *pNew = SymTable_Insert(symTable, $2, currentScope, yylineno, varType);
@@ -205,10 +197,11 @@ lvalue:     IDENTIFIER {
             | DBL_COLON IDENTIFIER {
                 SymTableEntry *pCurr = SymTable_Lookup(symTable, $2, 0);
 
-                if(!pCurr || !pCurr->isActive) {
+                if(pCurr) $$ = pCurr;
+                else {
                     fprintf(stderr, "\033[1;31mError:\033[0m Global symbol '::%s' not found (line %d)\n", $2, yylineno);
                     $$ = NULL;
-                } else $$ = pCurr;
+                }
             }
             | member { $$ = NULL; }
             ;
@@ -325,13 +318,13 @@ idlist:
 idlist_tail:
             | COMMA IDENTIFIER { 
                 SymTableEntry *libFunc = SymTable_Lookup(symTable, $2, 0);
-                
+
                 if(libFunc && libFunc->type == LIBFUNC) fprintf(stderr, "\033[1;31mError:\033[0m Cannot shadow a library function. '%s' (line %d)\n", $2, yylineno);
                 else {
                     int scope;
                     for(scope = currentScope; scope >= 0; scope--) {
                         SymTableEntry *pCurr = SymTable_Lookup(symTable, $2, scope);
-                        
+
                         if(pCurr) {
                             if(scope == currentScope)
                                 fprintf(stderr, "\033[1;31mError:\033[0m Symbol '%s' declared in scope %u (line %d)\n", $2, currentScope, yylineno);
@@ -383,7 +376,7 @@ returnstmt: RETURN expr SEMICOLON {
 int main(int argc, char **argv) {
     FILE *input_file = stdin;
     FILE *output_file = stdout;
-    
+
     if(argc > 1 && !(input_file = fopen(argv[1], "r"))) {
         fprintf(stderr, "Cannot read file: %s\n", argv[1]);
         return 1;
@@ -402,8 +395,7 @@ int main(int argc, char **argv) {
         stdout = output_file;
     }
 
-    if(yyparse() == 0) printf("\033[1;32m[SUCCESS]\033[0m Parsing completed successfully.\n");
-    else printf("\033[1;31m[FAILURE]\033[0m Parsing failed.\n");
+    yyparse();
 
     SymTable_Print(symTable);
     SymTable_Free(symTable);
