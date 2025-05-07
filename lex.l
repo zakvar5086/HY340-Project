@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "symtable.h"
+#include "quad.h"
 #include "parser.tab.h"
 
 #define YY_DECL int yylex(void)
