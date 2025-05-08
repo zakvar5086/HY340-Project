@@ -175,20 +175,32 @@ char *exprToString(Expr *e) {
     
     switch (e->type) {
         case var_e:
+            if(e->sym) return e->sym->name;
+            return "var";
+            
+        case programfunc_e:
+            if(e->sym) return e->sym->name;
+            return "programfunc";
+            
+        case libraryfunc_e:
+            if(e->sym) return e->sym->name;
+            return "libraryfunc";
+            
         case arithexpr_e:
         case boolexpr_e:
         case assignexpr_e:
         case newtable_e:
-        case programfunc_e:
-        case libraryfunc_e:
             if(e->sym) return e->sym->name;
             break;
 
         case tableitem_e:
             if(e->sym) {
-                if(e->index && e->index->type == conststring_e) sprintf(buffer, "%s.%s", e->sym->name, e->index->strConst);
-                else if(e->index) sprintf(buffer, "%s[...]", e->sym->name);
-                else return e->sym->name;
+                if(e->index && e->index->type == conststring_e) 
+                    sprintf(buffer, "%s.%s", e->sym->name, e->index->strConst);
+                else if(e->index) 
+                    sprintf(buffer, "%s[...]", e->sym->name);
+                else 
+                    return e->sym->name;
                 return buffer;
             }
             break;
@@ -207,13 +219,11 @@ char *exprToString(Expr *e) {
             return "nil";
     }
     
-    // Default fallback for any unhandled cases
     return getExprType(e->type);
 }
 
 /* Print all quads (for debugging) */
 void printQuads() {
-    printf("\n----- Quad List -----\n");
     printf("%-10s %-15s %-15s %-15s %-15s %-5s\n", 
            "quad#", "opcode", "result", "arg1", "arg2", "line");
     printf("---------------------------------------------------------------------------------\n");
