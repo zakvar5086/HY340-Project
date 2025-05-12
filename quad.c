@@ -1,6 +1,5 @@
 #include "quad.h"
 
-/* Global variables for quads management */
 Quad *quads = NULL;
 unsigned total_quads = 0;
 unsigned curr_quad = 0;
@@ -10,7 +9,6 @@ unsigned int temp_counter = 0;
 #define CURR_SIZE (total_quads * sizeof(Quad))
 #define NEW_SIZE (EXPAND_SIZE * sizeof(Quad) + CURR_SIZE)
 
-/* Allocate memory for quads */
 void initQuads() {
     quads = malloc(EXPAND_SIZE * sizeof(Quad));
     if(!quads) {
@@ -22,7 +20,6 @@ void initQuads() {
     temp_counter = 0;
 }
 
-/* Expand quads array when needed */
 void expandQuads() {
     if(curr_quad == total_quads) {
         quads = realloc(quads, NEW_SIZE);
@@ -34,13 +31,10 @@ void expandQuads() {
     }
 }
 
-/* Get next quad label (current index) */
 unsigned nextQuadLabel() { return curr_quad; }
 
-/* Reset temp counter */
 void resetTemp() { temp_counter = 0; }
 
-/* Create a new temp variable name */
 char *newtempname() {
     char *name = malloc(16 * sizeof(char));
     if(!name) {
@@ -52,7 +46,6 @@ char *newtempname() {
     return name;
 }
 
-/* Create a new temp variable in symbol table */
 SymTableEntry *newtemp(SymTable *symTable, unsigned int scope) {
     char *name = newtempname();
     SymTableEntry *sym = SymTable_Insert(symTable, name, scope, 0, LOCAL_VAR);
@@ -60,7 +53,6 @@ SymTableEntry *newtemp(SymTable *symTable, unsigned int scope) {
     return sym;
 }
 
-/* Create a new expression */
 Expr *newExpr(Expr_t type) {
     Expr *e = malloc(sizeof(Expr));
     if(!e) {
@@ -72,38 +64,32 @@ Expr *newExpr(Expr_t type) {
     return e;
 }
 
-/* Create a new constant number expression */
 Expr *newExpr_constnum(double val) {
     Expr *e = newExpr(constnum_e);
     e->numConst = val;
     return e;
 }
 
-/* Create a new constant boolean expression */
 Expr *newExpr_constbool(unsigned char val) {
     Expr *e = newExpr(constbool_e);
     e->boolConst = val;
     return e;
 }
 
-/* Create a new constant string expression */
 Expr *newExpr_conststring(char *val) {
     Expr *e = newExpr(conststring_e);
     e->strConst = strdup(val);
     return e;
 }
 
-/* Create a new symbol (variable, function) expression */
 Expr *newExpr_id(SymTableEntry *sym) {
     Expr *e = newExpr(var_e);
     e->sym = sym;
     return e;
 }
 
-/* Create a nil expression */
 Expr *newExpr_nil() { return newExpr(nil_e); }
 
-/* Emit a new quad instruction */
 void emit(iopcode op, Expr *arg1, Expr *arg2, Expr *result, unsigned line) {
     expandQuads();
     quads[curr_quad].op = op;
@@ -115,7 +101,6 @@ void emit(iopcode op, Expr *arg1, Expr *arg2, Expr *result, unsigned line) {
     curr_quad++;
 }
 
-/* Get string representation of opcode */
 const char *getOpcodeName(iopcode op) {
     switch (op) {
         case assign: return "assign";
@@ -148,7 +133,6 @@ const char *getOpcodeName(iopcode op) {
     }
 }
 
-/* Get string representation of expression type */
 const char *getExprType(Expr_t type) {
     switch (type) {
         case var_e: return "var";
@@ -167,7 +151,6 @@ const char *getExprType(Expr_t type) {
     }
 }
 
-/* Helper function to get string representation of expression for printing */
 char *exprToString(Expr *e) {
     static char buffer[256];
     
@@ -222,7 +205,6 @@ char *exprToString(Expr *e) {
     return getExprType(e->type);
 }
 
-/* Print all quads (for debugging) */
 void printQuads() {
     printf("%-10s %-15s %-15s %-15s %-15s %-5s\n", 
            "quad#", "opcode", "result", "arg1", "arg2", "line");

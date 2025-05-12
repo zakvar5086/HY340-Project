@@ -7,7 +7,6 @@
 #include <string.h>
 #include <assert.h>
 
-/* Expression Types */
 typedef enum Expr_t {
     var_e,
     tableitem_e,
@@ -27,7 +26,6 @@ typedef enum Expr_t {
     nil_e
 } Expr_t;
 
-/* Instruction Opcodes */
 typedef enum iopcode {
     assign,         add,            sub,
     mul,            div_op,         mod_op,
@@ -40,7 +38,6 @@ typedef enum iopcode {
     tablegetelem,   tablesetelem
 } iopcode;
 
-/* Expression structure */
 typedef struct Expr {
     Expr_t type;
     SymTableEntry *sym;
@@ -51,7 +48,6 @@ typedef struct Expr {
     struct Expr *next;
 } Expr;
 
-/* Quad structure */
 typedef struct Quad {
     iopcode op;
     Expr *result;
@@ -61,7 +57,6 @@ typedef struct Quad {
     unsigned line;
 } Quad;
 
-/* Quad functions */
 void emit(iopcode op, Expr *arg1, Expr *arg2, Expr *result, unsigned line);
 unsigned nextQuadLabel(void);
 void expandQuads(void);
@@ -71,7 +66,6 @@ SymTableEntry *newtemp(SymTable *symTable, unsigned int scope);
 void initQuads(void);
 void printQuads(void);
 
-/* Expression creation functions */
 Expr *newExpr(Expr_t type);
 Expr *newExpr_constnum(double val);
 Expr *newExpr_constbool(unsigned char val);
@@ -79,16 +73,13 @@ Expr *newExpr_conststring(char *val);
 Expr *newExpr_id(SymTableEntry *sym);
 Expr *newExpr_nil(void);
 
-/* Operator name conversion helpers */
 const char *getOpcodeName(iopcode op);
 const char *getExprType(Expr_t type);
 
-/* Current temp variable counter */
 extern unsigned int temp_counter;
 
-/* Quads array and size info */
 extern Quad *quads;
 extern unsigned total_quads;
 extern unsigned curr_quad;
 
-#endif /* QUAD_H */
+#endif
