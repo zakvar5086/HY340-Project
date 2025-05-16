@@ -25,6 +25,8 @@ int isFunctionScope(unsigned int scope) {
     return 0;
 }
 
+
+
 %}
 
 %union {
@@ -61,8 +63,9 @@ int isFunctionScope(unsigned int scope) {
 %left LPAREN RPAREN
 
 %type <symEntry> lvalue funcdef
-%type <exprNode> expr term assignexpr primary const call callsuffix normcall methodcall member
+%type <exprNode> expr term assignexpr primary const call callsuffix normcall methodcall member stmt
 %type <exprNode> elist elist_expr notempty_elist objectdef indexed indexedelem indexedelem_list
+%type <intValue> M
 
 %%
 
@@ -80,9 +83,19 @@ stmt:       expr SEMICOLON
             | returnstmt
             | BREAK SEMICOLON {
                 if(isLoop == 0) fprintf(stderr, "\033[1;31mError:\033[0m 'break' statement outside of a loop (line %d)\n", yylineno);
+                else {
+                    $$->breaklist = 1;
+                    emit(jump, NULL, NULL, NULL, 0);
+                    $$->breaklist = newlist(nextQuadLabel() - 1);
+                }
             }
             | CONTINUE SEMICOLON {
                 if(isLoop == 0) fprintf(stderr, "\033[1;31mError:\033[0m 'continue' statement outside of a loop (line %d)\n", yylineno);
+                else {
+                    $$->continueList = 1;
+                    emit(jump, NULL, NULL, NULL, 0);
+                    $$->continueList = newlist(nextQuadLabel() - 1);
+                }
             }
             | block
             | funcdef
@@ -91,158 +104,172 @@ stmt:       expr SEMICOLON
 
 expr:       assignexpr { $$ = $1; }
             | expr PLUS expr {
-                Expr *result = newExpr(arithexpr_e);
-                result->sym = newtemp(symTable, currentScope);
-                emit(add, $1, $3, result, yylineno);
-                $$ = result;
+                if(!isArithExpr($1) || !isArithExpr($3))
+                    fprintf(stderr, "\033[1;31mError:\033[0m Invalid operands to '+' operator (line %d)\n", yylineno);
+
+                $$ = newExpr(arithexpr_e);
+                $$->sym = newtemp(symTable, currentScope);
+                emit(add, $1, $3, $$, 0);
             }
             | expr MINUS expr {
-                Expr *result = newExpr(arithexpr_e);
-                result->sym = newtemp(symTable, currentScope);
-                emit(sub, $1, $3, result, yylineno);
-                $$ = result;
+                if(!isArithExpr($1) || !isArithExpr($3))
+                    fprintf(stderr, "\033[1;31mError:\033[0m Invalid operands to '-' operator (line %d)\n", yylineno);
+
+                $$ = newExpr(arithexpr_e);
+                $$->sym = newtemp(symTable, currentScope);
+                emit(sub, $1, $3, $$, 0);
             }
             | expr MULTIPLY expr {
-                Expr *result = newExpr(arithexpr_e);
-                result->sym = newtemp(symTable, currentScope);
-                emit(mul, $1, $3, result, yylineno);
-                $$ = result;
+                if(!isArithExpr($1) || !isArithExpr($3))
+                    fprintf(stderr, "\033[1;31mError:\033[0m Invalid operands to '*' operator (line %d)\n", yylineno);
+
+                $$ = newExpr(arithexpr_e);
+                $$->sym = newtemp(symTable, currentScope);
+                emit(mul, $1, $3, $$, 0);
             }
             | expr DIVIDE expr {
-                Expr *result = newExpr(arithexpr_e);
-                result->sym = newtemp(symTable, currentScope);
-                emit(div_op, $1, $3, result, yylineno);
-                $$ = result;
+                if(!isArithExpr($1) || !isArithExpr($3))
+                    fprintf(stderr, "\033[1;31mError:\033[0m Invalid operands to '/' operator (line %d)\n", yylineno);
+                if($3->type == constnum_e && $3->numConst == 0)
+                    fprintf(stderr, "\033[1;31mError:\033[0m Division by zero (line %d)\n", yylineno);
+
+                $$ = newExpr(arithexpr_e);
+                $$->sym = newtemp(symTable, currentScope);
+                emit(div_op, $1, $3, $$, 0);
             }
             | expr MOD expr {
-                Expr *result = newExpr(arithexpr_e);
-                result->sym = newtemp(symTable, currentScope);
-                emit(mod_op, $1, $3, result, yylineno);
-                $$ = result;
+                if(!isArithExpr($1) || !isArithExpr($3))
+                    fprintf(stderr, "\033[1;31mError:\033[0m Invalid operands to '%%' operator (line %d)\n", yylineno);
+
+                $$ = newExpr(arithexpr_e);
+                $$->sym = newtemp(symTable, currentScope);
+                emit(mod_op, $1, $3, $$, 0);
             }
-            | expr GREATER expr {
-                Expr *result = newExpr(boolexpr_e);
-                result->sym = newtemp(symTable, currentScope);
-                emit(if_greater, $1, $3, result, yylineno);
-                $$ = result;
+            | expr GREATER { if($1->type == boolexpr_e) $1 = emit_eval($1, symTable, currentScope) } expr {
+                if($4->type == boolexpr_e) $4 = emit_eval($4, symTable, currentScope);
+                $$ = newExpr(boolexpr_e);
+                
+                $$->truelist = nextQuadLabel();
+                $$->falselist = nextQuadLabel() + 1;
+
+                emit(if_greater, $1, $4, NULL, 0);
+                emit(jump, NULL, NULL, NULL, 0);
             }
-            | expr GREATER_EQUAL expr {
-                Expr *result = newExpr(boolexpr_e);
-                result->sym = newtemp(symTable, currentScope);
-                emit(if_greatereq, $1, $3, result, yylineno);
-                $$ = result;
+            | expr GREATER_EQUAL { if($1->type == boolexpr_e) $1 = emit_eval($1, symTable, currentScope) } expr {
+                if($4->type == boolexpr_e) $4 = emit_eval($4, symTable, currentScope);
+                $$ = newExpr(boolexpr_e);
+
+                $$->truelist = nextQuadLabel();
+                $$->falselist = nextQuadLabel() + 1;
+
+                emit(if_greatereq, $1, $4, NULL, 0);
+                emit(jump, NULL, NULL, NULL, 0);
             }
-            | expr LESS expr {
-                Expr *result = newExpr(boolexpr_e);
-                result->sym = newtemp(symTable, currentScope);
-                emit(if_less, $1, $3, result, yylineno);
-                $$ = result;
+            | expr LESS { if($1->type == boolexpr_e) $1 = emit_eval($1, symTable, currentScope) } expr {
+                if($4->type == boolexpr_e) $4 = emit_eval($4, symTable, currentScope);
+                $$ = newExpr(boolexpr_e);
+
+                $$->truelist = nextQuadLabel();
+                $$->falselist = nextQuadLabel() + 1;
+
+                emit(if_less, $1, $4, NULL, 0);
+                emit(jump, NULL, NULL, NULL, 0);
             }
-            | expr LESS_EQUAL expr {
-                Expr *result = newExpr(boolexpr_e);
-                result->sym = newtemp(symTable, currentScope);
-                emit(if_lesseq, $1, $3, result, yylineno);
-                $$ = result;
+            | expr LESS_EQUAL { if($1->type == boolexpr_e) $1 = emit_eval($1, symTable, currentScope) } expr {
+                if($4->type == boolexpr_e) $4 = emit_eval($4, symTable, currentScope);
+                $$ = newExpr(boolexpr_e);
+
+                $$->truelist = nextQuadLabel();
+                $$->falselist = nextQuadLabel() + 1;
+
+                emit(if_lesseq, $1, $4, NULL, 0);
+                emit(jump, NULL, NULL, NULL, 0);
             }
-            | expr EQUAL expr {
-                Expr *result = newExpr(boolexpr_e);
-                result->sym = newtemp(symTable, currentScope);
-                emit(if_eq, $1, $3, result, yylineno);
-                $$ = result;
+            | expr EQUAL { if($1->type == boolexpr_e) $1 = emit_eval($1, symTable, currentScope) } expr {
+                if($4->type == boolexpr_e) $4 = emit_eval($4, symTable, currentScope);
+                $$ = newExpr(boolexpr_e);
+
+                $$->truelist = nextQuadLabel();
+                $$->falselist = nextQuadLabel() + 1;
+
+                emit(if_eq, $1, $4, NULL, 0);
+                emit(jump, NULL, NULL, NULL, 0);
             }
-            | expr NEQUAL expr {
-                Expr *result = newExpr(boolexpr_e);
-                result->sym = newtemp(symTable, currentScope);
-                emit(if_noteq, $1, $3, result, yylineno);
-                $$ = result;
+            | expr NEQUAL  { if($1->type == boolexpr_e) $1 = emit_eval($1, symTable, currentScope) } expr {
+                if($4->type == boolexpr_e) $4 = emit_eval($4, symTable, currentScope);
+                $$ = newExpr(boolexpr_e);
+
+                $$->truelist = nextQuadLabel();
+                $$->falselist = nextQuadLabel() + 1;
+
+                emit(if_noteq, $1, $4, NULL, 0);
+                emit(jump, NULL, NULL, NULL, 0);
             }
-            | expr AND expr {
-                Expr *result = newExpr(boolexpr_e);
-                result->sym = newtemp(symTable, currentScope);
-                emit(and_op, $1, $3, result, yylineno);
-                $$ = result;
+            | expr AND { if($1->type!=boolexpr_e) $1 = evaluate($1, symTable, currentScope); } M expr {
+                if($5->type != boolexpr_e) $5 = evaluate($5, symTable, currentScope);
+                patchlist($1->truelist, $4);
+
+                $$ = newExpr(boolexpr_e);
+                $$->truelist = $5->truelist;
+                $$->falselist = mergelist($1->falselist, $5->falselist);
             }
-            | expr OR expr {
-                Expr *result = newExpr(boolexpr_e);
-                result->sym = newtemp(symTable, currentScope);
-                emit(or_op, $1, $3, result, yylineno);
-                $$ = result;
+            | expr OR { if($1->type!=boolexpr_e) $1 = evaluate($1, symTable, currentScope); } M expr {
+                if($5->type != boolexpr_e) $5 = evaluate($5, symTable, currentScope);
+                patchlist($1->falselist, $4);
+
+                $$ = newExpr(boolexpr_e);
+                $$->truelist = mergelist($1->truelist, $5->truelist);
+                $$->falselist = $5->falselist;
             }
             | term { $$ = $1; }
             ;
 
-term:       LPAREN expr RPAREN { $$ = $2; }
+M:          { $$ = nextQuadLabel(); }
+
+term:       LPAREN expr RPAREN { $$ = $2; if($2->type == boolexpr_e) $2 = emit_eval($2, symTable, currentScope); }
             | UMINUS expr %prec UMINUS {
-                Expr *result = newExpr(arithexpr_e);
-                result->sym = newtemp(symTable, currentScope);
-                emit(uminus, $2, NULL, result, yylineno);
-                $$ = result;
+                if($2->type != arithexpr_e) fprintf(stderr, "\033[1;31mError:\033[0m Invalid operand to unary '-' operator (line %d)\n", yylineno);
+                $$ = newExpr(arithexpr_e);
+                $$->sym = newtemp(symTable, currentScope);
+                emit(uminus, $2, NULL, $$, 0);
             }
             | NOT expr {
-                Expr *result = newExpr(boolexpr_e);
-                result->sym = newtemp(symTable, currentScope);
-                emit(not_op, $2, NULL, result, yylineno);
-                $$ = result;
+                if($2->type != boolexpr_e) $2 = evaluate($2, symTable, currentScope);
+                $$ = $2;
+
+                int temptrue = $2->truelist;
+                int tempfalse = $2->falselist;
+
+                $$->truelist = tempfalse;
+                $$->falselist = temptrue;
             }
             | INCR lvalue {
                 if($2 && ($2->type == USERFUNC || $2->type == LIBFUNC))
                     fprintf(stderr, "\033[1;31mError:\033[0m Illegal action '++' to function (line %d)\n", yylineno);
 
-                Expr *result = newExpr(var_e);
-                result->sym = $2;
-                Expr *one = newExpr_constnum(1);
-                Expr *temp = newExpr(arithexpr_e);
-                temp->sym = newtemp(symTable, currentScope);
-
-                emit(add, result, one, temp, yylineno);
-                emit(assign, temp, NULL, result, yylineno);
-                $$ = temp;
+                emit(add, newExpr_constnum(1), $2, $2, 0);
+                $$ = $2;
             }
             | lvalue INCR {
                 if($1 && ($1->type == USERFUNC || $1->type == LIBFUNC))
                     fprintf(stderr, "\033[1;31mError:\033[0m Illegal action '++' to function (line %d)\n", yylineno);
 
-                Expr *result = newExpr(var_e);
-                result->sym = $1;
-                Expr *copyExpr = newExpr(var_e);
-                copyExpr->sym = $1;
-                Expr *one = newExpr_constnum(1);
-                Expr *temp = newExpr(arithexpr_e);
-                temp->sym = newtemp(symTable, currentScope);
-
-                emit(assign, result, NULL, temp, yylineno);
-                emit(add, result, one, result, yylineno);
-                $$ = temp;
+                emit(assign, $1, NULL, $$, 0);
+                emit(add, newExpr_constnum(1), $1, $1, 0);
             }
             | DECR lvalue {
                 if($2 && ($2->type == USERFUNC || $2->type == LIBFUNC))
                     fprintf(stderr, "\033[1;31mError:\033[0m Illegal action '--' to function (line %d)\n", yylineno);
 
-                Expr *result = newExpr(var_e);
-                result->sym = $2;
-                Expr *one = newExpr_constnum(1);
-                Expr *temp = newExpr(arithexpr_e);
-                temp->sym = newtemp(symTable, currentScope);
-                
-                emit(sub, result, one, temp, yylineno);
-                emit(assign, temp, NULL, result, yylineno);
-                $$ = temp;
+                emit(sub, newExpr_constnum(1), $2, $2, 0);
+                $$ = $2;
             }
             | lvalue DECR {
                 if($1 && ($1->type == USERFUNC || $1->type == LIBFUNC))
                     fprintf(stderr, "\033[1;31mError:\033[0m Illegal action '--' to function (line %d)\n", yylineno);
 
-                Expr *result = newExpr(var_e);
-                result->sym = $1;
-                Expr *copyExpr = newExpr(var_e);
-                copyExpr->sym = $1;
-                Expr *one = newExpr_constnum(1);
-                Expr *temp = newExpr(arithexpr_e);
-                temp->sym = newtemp(symTable, currentScope);
-
-                emit(assign, result, NULL, temp, yylineno);
-                emit(sub, result, one, result, yylineno);
-                $$ = temp;
+                emit(assign, $1, NULL, $$, 0);
+                emit(sub, newExpr_constnum(1), $1, $1, 0);
             }
             | primary { $$ = $1; }
             ;
@@ -251,9 +278,11 @@ assignexpr: lvalue ASSIGN expr {
                 if($1 && ($1->type == USERFUNC || $1->type == LIBFUNC))
                     fprintf(stderr, "\033[1;31mError:\033[0m Illegal action '=' to function (line %d)\n", yylineno);
 
-                Expr *result = newExpr_id($1);
-                emit(assign, $3, NULL, result, yylineno);
-                $$ = $3;
+                if($3->type == boolexpr_e) $3 = emit_eval($3, symTable, currentScope);
+
+                $$ = newExpr(var_e);
+                $$->sym = newtemp(symTable, currentScope);
+                emit(assign, $1, $3, $$, 0);
             }
             ;
 
@@ -304,12 +333,15 @@ lvalue:     IDENTIFIER {
 
                     if(!found) {
                         pCurr = SymTable_Lookup(symTable, $1, 0);
-                        if(pCurr && (pCurr->type == LIBFUNC || pCurr->type == USERFUNC || pCurr->type == GLOBAL_VAR))
+                        if(pCurr && (pCurr->type == LIBFUNC || 
+                                    pCurr->type == USERFUNC || 
+                                    pCurr->type == GLOBAL_VAR))
                             $$ = pCurr;
                         else if(currentScope == 0) $$ = SymTable_Insert(symTable, $1, currentScope, yylineno, GLOBAL_VAR);
                         else $$ = SymTable_Insert(symTable, $1, currentScope, yylineno, varType);
                     }
                 }
+
             }
             | LOCAL IDENTIFIER {
                 SymTableEntry *pCurr = SymTable_Lookup(symTable, $2, currentScope);
@@ -363,11 +395,11 @@ member:     lvalue DOT IDENTIFIER {
             ;
 
 call:       call LPAREN elist RPAREN {
-                emit(call, $1, NULL, NULL, yylineno);
+                emit(call, $1, NULL, NULL, 0);
                 
                 Expr *result = newExpr(var_e);
                 result->sym = newtemp(symTable, currentScope);
-                emit(getretval, NULL, NULL, result, yylineno);
+                emit(getretval, NULL, NULL, result, 0);
                 $$ = result;
             }
             | lvalue callsuffix {
@@ -381,15 +413,15 @@ call:       call LPAREN elist RPAREN {
                     if($2) {
                         Expr *arg = $2;
                         while(arg) {
-                            emit(param, arg, NULL, NULL, yylineno);
+                            emit(param, arg, NULL, NULL, 0);
                             arg = arg->next;
                         }
                     }
-                    emit(call, func, NULL, NULL, yylineno);
+                    emit(call, func, NULL, NULL, 0);
 
                     Expr *result = newExpr(var_e);
                     result->sym = newtemp(symTable, currentScope);
-                    emit(getretval, NULL, NULL, result, yylineno);
+                    emit(getretval, NULL, NULL, result, 0);
                     $$ = result;
                 } else $$ = NULL;
             }
@@ -401,15 +433,15 @@ call:       call LPAREN elist RPAREN {
                     if($5) {
                         Expr *arg = $5;
                         while(arg) {
-                            emit(param, arg, NULL, NULL, yylineno);
+                            emit(param, arg, NULL, NULL, 0);
                             arg = arg->next;
                         }
                     }
-                    emit(call, func, NULL, NULL, yylineno);
+                    emit(call, func, NULL, NULL, 0);
                     
                     Expr *result = newExpr(var_e);
                     result->sym = newtemp(symTable, currentScope);
-                    emit(getretval, NULL, NULL, result, yylineno);
+                    emit(getretval, NULL, NULL, result, 0);
                     $$ = result;
                 } else $$ = NULL;
             }
@@ -455,19 +487,19 @@ notempty_elist: expr elist_expr {
 objectdef:  LBRACKET RBRACKET {
                 Expr *result = newExpr(newtable_e);
                 result->sym = newtemp(symTable, currentScope);
-                emit(tablecreate, NULL, NULL, result, yylineno);
+                emit(tablecreate, NULL, NULL, result, 0);
                 $$ = result;
             }
             | LBRACKET notempty_elist RBRACKET {
                 Expr *result = newExpr(newtable_e);
                 result->sym = newtemp(symTable, currentScope);
-                emit(tablecreate, NULL, NULL, result, yylineno);
+                emit(tablecreate, NULL, NULL, result, 0);
                 $$ = result;
             }
             | LBRACKET indexed RBRACKET {
                 Expr *result = newExpr(newtable_e);
                 result->sym = newtemp(symTable, currentScope);
-                emit(tablecreate, NULL, NULL, result, yylineno);
+                emit(tablecreate, NULL, NULL, result, 0);
                 $$ = result;
             }
             ;
@@ -509,7 +541,7 @@ funcdef:    FUNCTION IDENTIFIER {
 
                         Expr *funcExpr = newExpr(programfunc_e);
                         funcExpr->sym = $$;
-                        emit(funcstart, NULL, NULL, funcExpr, yylineno);
+                        emit(funcstart, NULL, NULL, funcExpr, 0);
                     }
                 }
             } LPAREN {
@@ -518,7 +550,7 @@ funcdef:    FUNCTION IDENTIFIER {
             } idlist RPAREN { --currentScope; } block { 
                 Expr *funcExpr = newExpr(programfunc_e);
                 funcExpr->sym = $$;
-                emit(funcend, NULL, NULL, funcExpr, yylineno);
+                emit(funcend, NULL, NULL, funcExpr, 0);
             }
             | FUNCTION {
                 ++anon_func;
@@ -529,14 +561,14 @@ funcdef:    FUNCTION IDENTIFIER {
 
                 Expr *funcExpr = newExpr(programfunc_e);
                 funcExpr->sym = $$;
-                emit(funcstart, NULL, NULL, funcExpr, yylineno);
+                emit(funcstart, NULL, NULL, funcExpr, 0);
             } LPAREN {
                 ++currentScope;
                 isFunctionScopes[currentScope] = 1;
             } idlist RPAREN { --currentScope; } block { 
                 Expr *funcExpr = newExpr(programfunc_e);
                 funcExpr->sym = $$;
-                emit(funcend, NULL, NULL, funcExpr, yylineno);
+                emit(funcend, NULL, NULL, funcExpr, 0);
             }
             ;
 
@@ -625,22 +657,21 @@ ifstmt:     IF LPAREN expr RPAREN stmt ELSE stmt
             ;
 
 whilestmt:  WHILE LPAREN expr RPAREN { ++isLoop; } stmt { --isLoop; }
-            ;
 
-forstmt:    FOR LPAREN elist SEMICOLON expr SEMICOLON elist RPAREN { ++isLoop; } stmt { --isLoop; }
+forstmt:    FOR LPAREN elist SEMICOLON expr SEMICOLON elist { ++isLoop; } RPAREN stmt { --isLoop; }
             ;
 
 returnstmt: RETURN expr SEMICOLON {
                 if(!isFunctionScope(currentScope)) 
                     fprintf(stderr, "\033[1;31mError:\033[0m 'return' statement outside of a function (line %d)\n", yylineno);
                 else
-                    emit(ret, $2, NULL, NULL, yylineno);
+                    emit(ret, $2, NULL, NULL, 0);
             }
             | RETURN SEMICOLON {
                 if(!isFunctionScope(currentScope)) 
                     fprintf(stderr, "\033[1;31mError:\033[0m 'return' statement outside of a function (line %d)\n", yylineno);
                 else
-                    emit(ret, NULL, NULL, NULL, yylineno);
+                    emit(ret, NULL, NULL, NULL, 0);
             }
             ;
 

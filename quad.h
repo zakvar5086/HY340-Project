@@ -46,6 +46,12 @@ typedef struct Expr {
     char *strConst;
     unsigned char boolConst;
     struct Expr *next;
+
+    unsigned truelist;
+    unsigned falselist;
+
+    unsigned breaklist;
+    unsigned contlist;
 } Expr;
 
 typedef struct Quad {
@@ -75,11 +81,20 @@ Expr *newExpr_nil(void);
 
 const char *getOpcodeName(iopcode op);
 const char *getExprType(Expr_t type);
+const char *exprToString(Expr *e);
+int isArithExpr(Expr *e);
 
 extern unsigned int temp_counter;
 
 extern Quad *quads;
 extern unsigned total_quads;
 extern unsigned curr_quad;
+
+
+unsigned newlist(unsigned i);
+unsigned mergelist(unsigned l1, unsigned l2);
+void patchlist(unsigned list, unsigned label);
+Expr* evaluate(Expr* expr, SymTable *symTable, unsigned int currentScope);
+Expr* emit_eval(Expr* expr, SymTable *symTable, unsigned int currentScope);
 
 #endif

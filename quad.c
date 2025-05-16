@@ -1,5 +1,9 @@
 #include "quad.h"
 
+extern unsigned yylineno;
+extern SymTable *symTable;
+extern unsigned int currentScope;
+
 Quad *quads = NULL;
 unsigned total_quads = 0;
 unsigned curr_quad = 0;
@@ -11,6 +15,7 @@ unsigned int temp_counter = 0;
 
 void initQuads() {
     quads = malloc(EXPAND_SIZE * sizeof(Quad));
+    memset(quads, 0, EXPAND_SIZE * sizeof(Quad));
     if(!quads) {
         fprintf(stderr, "Error: Memory allocation failed for quads\n");
         exit(1);
@@ -37,6 +42,7 @@ void resetTemp() { temp_counter = 0; }
 
 char *newtempname() {
     char *name = malloc(16 * sizeof(char));
+    memset(name, 0, 16 * sizeof(char));
     if(!name) {
         fprintf(stderr, "Error: Memory allocation failed for temp name\n");
         exit(1);
@@ -61,6 +67,11 @@ Expr *newExpr(Expr_t type) {
     }
     memset(e, 0, sizeof(Expr));
     e->type = type;
+
+    if(type == boolexpr_e){
+        e->truelist = 0;
+        e->falselist = 0;
+    }
     return e;
 }
 
@@ -90,14 +101,14 @@ Expr *newExpr_id(SymTableEntry *sym) {
 
 Expr *newExpr_nil() { return newExpr(nil_e); }
 
-void emit(iopcode op, Expr *arg1, Expr *arg2, Expr *result, unsigned line) {
+void emit(iopcode op, Expr *arg1, Expr *arg2, Expr *result, unsigned label) {
     expandQuads();
     quads[curr_quad].op = op;
     quads[curr_quad].arg1 = arg1;
     quads[curr_quad].arg2 = arg2;
     quads[curr_quad].result = result;
-    quads[curr_quad].line = line;
-    quads[curr_quad].label = 0;
+    quads[curr_quad].line = yylineno;
+    quads[curr_quad].label = label;
     curr_quad++;
 }
 
@@ -151,7 +162,7 @@ const char *getExprType(Expr_t type) {
     }
 }
 
-char *exprToString(Expr *e) {
+const char *exprToString(Expr *e) {
     static char buffer[256];
     
     if(!e) return "NULL";
@@ -205,20 +216,129 @@ char *exprToString(Expr *e) {
     return getExprType(e->type);
 }
 
+int isArithExpr(Expr *e) {
+    if( e->type == constbool_e ||
+        e->type == conststring_e ||
+        e->type == nil_e ||
+        e->type == newtable_e ||
+        e->type == programfunc_e ||
+        e->type == libraryfunc_e ||
+        e->type == boolexpr_e)
+        return 0;
+    
+    return 1;
+}
+
 void printQuads() {
     printf("%-10s %-15s %-15s %-15s %-15s %-5s\n", 
-           "quad#", "opcode", "result", "arg1", "arg2", "line");
+           "quad#", "opcode", "result", "arg1", "arg2", "label");
     printf("---------------------------------------------------------------------------------\n");
     
     for(unsigned i = 0; i < curr_quad; i++) {
         Quad q = quads[i];
+        const char *resultStr = exprToString(q.result);
+        const char *arg1Str = exprToString(q.arg1);
+        const char *arg2Str = exprToString(q.arg2);
         printf("%-10d %-15s %-15s %-15s %-15s %-5d\n", 
                i, 
                getOpcodeName(q.op), 
-               exprToString(q.result),
-               exprToString(q.arg1), 
-               exprToString(q.arg2), 
-               q.line);
+               (resultStr && strcmp(resultStr, "NULL") != 0) ? resultStr : "",
+               (arg1Str && strcmp(arg1Str, "NULL") != 0) ? arg1Str : "",
+               (arg2Str && strcmp(arg2Str, "NULL") != 0) ? arg2Str : "",
+               q.label);
     }
     printf("---------------------------------------------------------------------------------\n");
+}
+
+unsigned newlist(unsigned i) {
+    
+    if(i >= curr_quad) {
+        printf("ERROR: Invalid quad index %u (max is %u)\n", i, curr_quad-1);
+        return 0;
+    }
+    
+    quads[i].label = 0;
+    return i;
+}
+ 
+void patchlist(unsigned list, unsigned label) {
+    while(list) {
+        if(list >= curr_quad) {
+            printf("ERROR: Invalid quad index %u\n", list);
+            break;
+        }
+        
+        unsigned next = quads[list].label;
+        quads[list].label = label;
+        
+        if(next == list) {
+            printf("ERROR: Self-referential list at quad #%u\n", list);
+            break;
+        }
+        
+        list = next;
+    }
+}
+
+void patchlabel(unsigned quad, unsigned label) {
+    if(quads[quad].label != 0) {
+        printf("ERROR: Quad #%u already patched\n", quad);
+        return;
+    }
+    
+    quads[quad].label = label;
+}
+
+unsigned mergelist(unsigned l1, unsigned l2) {
+    if(!l1) return l2;
+    if(!l2) return l1;
+
+    unsigned i = l1;
+    while(i != 0 && quads[i].label != 0) {
+        if(quads[i].label == i) {
+            printf("ERROR: Self-referential list at quad #%u\n", i);
+            break;
+        }
+        i = quads[i].label;
+    }
+
+    if(i == 0) {
+        printf("WARNING: First list has a zero entry\n");
+        return l2;
+    }
+
+    quads[i].label = l2;
+
+    return l1;
+}
+ 
+Expr* evaluate(Expr* expr, SymTable *symTable, unsigned int currentScope) {
+    if(expr->type == boolexpr_e) return expr;
+    
+    Expr* result = newExpr(boolexpr_e);
+    result->truelist = nextQuadLabel();
+    result->falselist = nextQuadLabel() + 1;
+
+    emit(if_eq, expr, newExpr_constbool(1), NULL, 0);
+    emit(jump, NULL, NULL, NULL, 0);
+
+    return result;
+}
+ 
+Expr* emit_eval(Expr* expr, SymTable *symTable, unsigned int currentScope) {
+    Expr *res = expr;
+
+    if(expr->type != boolexpr_e) expr = evaluate(expr, symTable, currentScope);
+
+    res = newExpr(boolexpr_e);
+    res->sym = newtemp(symTable, currentScope);
+
+    patchlist(expr->truelist, nextQuadLabel());
+    patchlist(expr->falselist, nextQuadLabel() + 2);
+
+    emit(assign, newExpr_constbool(1), NULL, res, 0);
+    emit(jump, NULL, NULL, NULL, nextQuadLabel() + 2);
+    emit(assign, newExpr_constbool(0), NULL, res, 0);
+
+    return res;
 }
