@@ -1,7 +1,7 @@
 all: alpha_parser
 
-alpha_parser: lex.yy.c parser.tab.c symtablehash.c quad.c
-	gcc -g -o alpha_parser lex.yy.c parser.tab.c symtablehash.c quad.c -ll -g
+alpha_parser: lex.yy.c parser.tab.c utils/symtablehash.c utils/quad.c
+	gcc -g -o alpha_parser lex.yy.c parser.tab.c utils/symtablehash.c utils/quad.c utils/stack.c -ll -g
 
 parser.tab.c parser.tab.h: parser.y
 	bison -d parser.y

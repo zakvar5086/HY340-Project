@@ -49,10 +49,13 @@ typedef struct Expr {
 
     unsigned truelist;
     unsigned falselist;
+} Expr;
 
+typedef struct stmt {
     unsigned breaklist;
     unsigned contlist;
-} Expr;
+    unsigned returnlist;
+} stmt_t;
 
 typedef struct Quad {
     iopcode op;

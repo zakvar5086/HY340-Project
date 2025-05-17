@@ -1,4 +1,4 @@
-#include "quad.h"
+#include "../headers/quad.h"
 
 extern unsigned yylineno;
 extern SymTable *symTable;

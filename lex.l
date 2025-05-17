@@ -2,8 +2,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "symtable.h"
-#include "quad.h"
+#include "headers/symtable.h"
+#include "headers/quad.h"
 #include "parser.tab.h"
 
 #define YY_DECL int yylex(void)

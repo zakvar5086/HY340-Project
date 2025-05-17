@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
-#include "symtable.h"
+#include "../headers/symtable.h"
 
 #define hash_multi 65599
 

@@ -3,8 +3,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
-#include "symtable.h"
-#include "quad.h"
+#include "headers/symtable.h"
+#include "headers/quad.h"
+#include "headers/stack.h"
 #include "parser.tab.h"
 
 #define YY_DECL int yylex(void)
@@ -24,8 +25,6 @@ int isFunctionScope(unsigned int scope) {
     if(scope < MAX_SCOPE) return isFunctionScopes[scope];
     return 0;
 }
-
-
 
 %}
 
