@@ -96,5 +96,6 @@ unsigned mergelist(unsigned l1, unsigned l2);
 void patchlist(unsigned list, unsigned label);
 Expr* evaluate(Expr* expr, SymTable *symTable, unsigned int currentScope);
 Expr* emit_eval(Expr* expr, SymTable *symTable, unsigned int currentScope);
+Expr* emit_eval_var(Expr* expr, SymTable *symTable, unsigned int currentScope);
 
 #endif

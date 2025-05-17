@@ -63,7 +63,7 @@ int isFunctionScope(unsigned int scope) {
 %left LPAREN RPAREN
 
 %type <symEntry> lvalue funcdef
-%type <exprNode> expr term assignexpr primary const call callsuffix normcall methodcall member stmt
+%type <exprNode> expr term assignexpr primary const call callsuffix normcall methodcall member
 %type <exprNode> elist elist_expr notempty_elist objectdef indexed indexedelem indexedelem_list
 %type <intValue> M
 
@@ -76,26 +76,18 @@ stmt_list:
             | stmt stmt_list
             ;
 
-stmt:       expr SEMICOLON
+stmt:       expr SEMICOLON {
+                $1 = emit_eval_var($1, symTable, currentScope);
+            }
             | ifstmt
             | whilestmt
             | forstmt
             | returnstmt
             | BREAK SEMICOLON {
                 if(isLoop == 0) fprintf(stderr, "\033[1;31mError:\033[0m 'break' statement outside of a loop (line %d)\n", yylineno);
-                else {
-                    $$->breaklist = 1;
-                    emit(jump, NULL, NULL, NULL, 0);
-                    $$->breaklist = newlist(nextQuadLabel() - 1);
-                }
             }
             | CONTINUE SEMICOLON {
                 if(isLoop == 0) fprintf(stderr, "\033[1;31mError:\033[0m 'continue' statement outside of a loop (line %d)\n", yylineno);
-                else {
-                    $$->continueList = 1;
-                    emit(jump, NULL, NULL, NULL, 0);
-                    $$->continueList = newlist(nextQuadLabel() - 1);
-                }
             }
             | block
             | funcdef
@@ -148,7 +140,7 @@ expr:       assignexpr { $$ = $1; }
             | expr GREATER { if($1->type == boolexpr_e) $1 = emit_eval($1, symTable, currentScope) } expr {
                 if($4->type == boolexpr_e) $4 = emit_eval($4, symTable, currentScope);
                 $$ = newExpr(boolexpr_e);
-                
+
                 $$->truelist = nextQuadLabel();
                 $$->falselist = nextQuadLabel() + 1;
 
@@ -235,41 +227,49 @@ term:       LPAREN expr RPAREN { $$ = $2; if($2->type == boolexpr_e) $2 = emit_e
             }
             | NOT expr {
                 if($2->type != boolexpr_e) $2 = evaluate($2, symTable, currentScope);
+                
+                unsigned temp1 = $2->truelist;
+                unsigned temp2 = $2->falselist;
+
                 $$ = $2;
-
-                int temptrue = $2->truelist;
-                int tempfalse = $2->falselist;
-
-                $$->truelist = tempfalse;
-                $$->falselist = temptrue;
+                $$->truelist = temp2;
+                $$->falselist = temp1;
             }
             | INCR lvalue {
                 if($2 && ($2->type == USERFUNC || $2->type == LIBFUNC))
                     fprintf(stderr, "\033[1;31mError:\033[0m Illegal action '++' to function (line %d)\n", yylineno);
 
-                emit(add, newExpr_constnum(1), $2, $2, 0);
-                $$ = $2;
+                Expr *lvalueExpr = newExpr_id($2);
+                emit(add, lvalueExpr, newExpr_constnum(1), lvalueExpr, 0);
+                $$ = lvalueExpr;
             }
             | lvalue INCR {
                 if($1 && ($1->type == USERFUNC || $1->type == LIBFUNC))
                     fprintf(stderr, "\033[1;31mError:\033[0m Illegal action '++' to function (line %d)\n", yylineno);
 
-                emit(assign, $1, NULL, $$, 0);
-                emit(add, newExpr_constnum(1), $1, $1, 0);
+                Expr *lvalueExpr = newExpr_id($1);
+                $$ = newExpr(var_e);
+                $$->sym = newtemp(symTable, currentScope);
+                emit(assign, lvalueExpr, NULL, $$, 0);
+                emit(add, lvalueExpr, newExpr_constnum(1), lvalueExpr, 0);
             }
             | DECR lvalue {
                 if($2 && ($2->type == USERFUNC || $2->type == LIBFUNC))
                     fprintf(stderr, "\033[1;31mError:\033[0m Illegal action '--' to function (line %d)\n", yylineno);
 
-                emit(sub, newExpr_constnum(1), $2, $2, 0);
-                $$ = $2;
+                Expr *lvalueExpr = newExpr_id($2);
+                emit(sub, lvalueExpr, newExpr_constnum(1), lvalueExpr, 0);
+                $$ = lvalueExpr;
             }
             | lvalue DECR {
                 if($1 && ($1->type == USERFUNC || $1->type == LIBFUNC))
                     fprintf(stderr, "\033[1;31mError:\033[0m Illegal action '--' to function (line %d)\n", yylineno);
 
-                emit(assign, $1, NULL, $$, 0);
-                emit(sub, newExpr_constnum(1), $1, $1, 0);
+                Expr *lvalueExpr = newExpr_id($1);
+                $$ = newExpr(var_e);
+                $$->sym = newtemp(symTable, currentScope);
+                emit(assign, lvalueExpr, NULL, $$, 0);
+                emit(sub, lvalueExpr, newExpr_constnum(1), lvalueExpr, 0);
             }
             | primary { $$ = $1; }
             ;
@@ -280,9 +280,11 @@ assignexpr: lvalue ASSIGN expr {
 
                 if($3->type == boolexpr_e) $3 = emit_eval($3, symTable, currentScope);
 
+                Expr *lvalueExpr = newExpr_id($1);
                 $$ = newExpr(var_e);
                 $$->sym = newtemp(symTable, currentScope);
-                emit(assign, $1, $3, $$, 0);
+                emit(assign, $3, NULL, lvalueExpr, 0);
+                emit(assign, lvalueExpr, NULL, $$, 0);
             }
             ;
 
@@ -375,10 +377,12 @@ lvalue:     IDENTIFIER {
             ;
 
 member:     lvalue DOT IDENTIFIER {
-                Expr *result = newExpr(tableitem_e);
-                result->sym = $1;
-                result->index = newExpr_conststring($3);
-                $$ = result;
+                if($1) {
+                    Expr *result = newExpr(tableitem_e);
+                    result->sym = $1;
+                    result->index = newExpr_conststring($3);
+                    $$ = result;
+                } else $$ = NULL;
             }
             | lvalue LBRACKET expr RBRACKET {
                 Expr *result = newExpr(tableitem_e);
@@ -505,8 +509,10 @@ objectdef:  LBRACKET RBRACKET {
             ;
 
 indexed:    indexedelem indexedelem_list {
-                $$ = $1;
-                if($2) $1->next = $2;
+                if($1) {
+                    $$ = $1;
+                    if($2) $1->next = $2;
+                } else $$ = $2;
             }
             ;
 
@@ -526,6 +532,12 @@ block:      LBRACE { ++currentScope; } stmt_list RBRACE { SymTable_Hide(symTable
             ;
 
 funcdef:    FUNCTION IDENTIFIER {
+                if($$) {
+                    Expr *func = newExpr(programfunc_e);
+                    func->sym = $$;
+                    emit(funcstart, NULL, NULL, func, 0);
+                }
+
                 SymTableEntry *libFunc = SymTable_Lookup(symTable, $2, 0);
 
                 if(libFunc && libFunc->type == LIBFUNC) {
@@ -538,10 +550,6 @@ funcdef:    FUNCTION IDENTIFIER {
                         $$ = NULL;
                     } else {
                         $$ = SymTable_Insert(symTable, $2, currentScope, yylineno, USERFUNC);
-
-                        Expr *funcExpr = newExpr(programfunc_e);
-                        funcExpr->sym = $$;
-                        emit(funcstart, NULL, NULL, funcExpr, 0);
                     }
                 }
             } LPAREN {

@@ -21,7 +21,7 @@ void initQuads() {
         exit(1);
     }
     total_quads = EXPAND_SIZE;
-    curr_quad = 0;
+    curr_quad = 1;
     temp_counter = 0;
 }
 
@@ -234,7 +234,7 @@ void printQuads() {
            "quad#", "opcode", "result", "arg1", "arg2", "label");
     printf("---------------------------------------------------------------------------------\n");
     
-    for(unsigned i = 0; i < curr_quad; i++) {
+    for(unsigned i = 1; i < curr_quad; i++) {
         Quad q = quads[i];
         const char *resultStr = exprToString(q.result);
         const char *arg1Str = exprToString(q.arg1);
@@ -328,9 +328,27 @@ Expr* evaluate(Expr* expr, SymTable *symTable, unsigned int currentScope) {
 Expr* emit_eval(Expr* expr, SymTable *symTable, unsigned int currentScope) {
     Expr *res = expr;
 
-    if(expr->type != boolexpr_e) expr = evaluate(expr, symTable, currentScope);
+    if(expr->type != boolexpr_e) return expr;
 
     res = newExpr(boolexpr_e);
+    res->sym = newtemp(symTable, currentScope);
+
+    patchlist(expr->truelist, nextQuadLabel());
+    patchlist(expr->falselist, nextQuadLabel() + 2);
+
+    emit(assign, newExpr_constbool(1), NULL, res, 0);
+    emit(jump, NULL, NULL, NULL, nextQuadLabel() + 2);
+    emit(assign, newExpr_constbool(0), NULL, res, 0);
+
+    return res;
+}
+
+Expr* emit_eval_var(Expr* expr, SymTable *symTable, unsigned int currentScope) {
+    Expr *res = expr;
+
+    if(expr->type != boolexpr_e) return expr;
+
+    res = newExpr(var_e);
     res->sym = newtemp(symTable, currentScope);
 
     patchlist(expr->truelist, nextQuadLabel());
