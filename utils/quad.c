@@ -250,6 +250,14 @@ void printQuads() {
     printf("---------------------------------------------------------------------------------\n");
 }
 
+void make_stmt(stmt_t **s) {
+    *s = malloc(sizeof(stmt_t));
+    memset(*s, 0, sizeof(stmt_t));
+    (*s)->breaklist = 0;
+    (*s)->contlist = 0;
+    (*s)->retlist = 0;
+}
+
 unsigned newlist(unsigned i) {
     
     if(i >= curr_quad) {
@@ -292,6 +300,11 @@ void patchlabel(unsigned quad, unsigned label) {
 unsigned mergelist(unsigned l1, unsigned l2) {
     if(!l1) return l2;
     if(!l2) return l1;
+
+    if(l1 >= curr_quad || l2 >= curr_quad) {
+        printf("ERROR: Invalid quad index %u or %u\n", l1, l2);
+        return 0;
+    }
 
     unsigned i = l1;
     while(i != 0 && quads[i].label != 0) {

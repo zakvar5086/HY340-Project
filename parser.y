@@ -34,6 +34,8 @@ int isFunctionScope(unsigned int scope) {
     double realValue;
     SymTableEntry *symEntry;
     Expr *exprNode;
+    stmt_t *stmtValue;
+    forstmt_t *forValue;
 }
 
 %token <stringValue> IDENTIFIER STRINGCONST
@@ -45,9 +47,6 @@ int isFunctionScope(unsigned int scope) {
 %token EQUAL NEQUAL INCR DECR GREATER LESS GREATER_EQUAL LESS_EQUAL
 %token LBRACE RBRACE LBRACKET RBRACKET LPAREN RPAREN
 %token SEMICOLON COMMA COLON DBL_COLON DOT DBL_DOT
-
-%nonassoc LOWER_THAN_ELSE
-%nonassoc ELSE
 
 %right ASSIGN
 %left OR
@@ -65,14 +64,24 @@ int isFunctionScope(unsigned int scope) {
 %type <exprNode> expr term assignexpr primary const call callsuffix normcall methodcall member
 %type <exprNode> elist elist_expr notempty_elist objectdef indexed indexedelem indexedelem_list
 %type <intValue> M
+%type <stmtValue> stmt stmt_list ifstmt whilestmt forstmt block
+%type <intValue> ifprefix jumpandsavepos whilestart whilecond returnstmt
+%type <forValue> forprefix
+
+%expect 1
 
 %%
 
 program:    stmt_list
             ;
 
-stmt_list:  
-            | stmt stmt_list
+stmt_list:  { make_stmt(&$$); }
+            | stmt stmt_list {
+                $$ = $1;
+                $$->breaklist = mergelist($1->breaklist, $2->breaklist);
+                $$->contlist = mergelist($1->contlist, $2->contlist);
+                $$->retlist = mergelist($1->retlist, $2->retlist);
+            }
             ;
 
 stmt:       expr SEMICOLON {
@@ -81,16 +90,30 @@ stmt:       expr SEMICOLON {
             | ifstmt
             | whilestmt
             | forstmt
-            | returnstmt
+            | returnstmt {
+                make_stmt(&$$);
+                $$->retlist = newlist($1);
+            }
+            ;
             | BREAK SEMICOLON {
-                if(isLoop == 0) fprintf(stderr, "\033[1;31mError:\033[0m 'break' statement outside of a loop (line %d)\n", yylineno);
+                make_stmt(&$$);
+                emit(jump, NULL, NULL, NULL, 0);
+                $$->breaklist = newlist(nextQuadLabel() - 1);
+
+                if (!isLoop)
+                    yyerror("Break statement outside of loop");
             }
             | CONTINUE SEMICOLON {
-                if(isLoop == 0) fprintf(stderr, "\033[1;31mError:\033[0m 'continue' statement outside of a loop (line %d)\n", yylineno);
+                make_stmt(&$$);
+                emit(jump, NULL, NULL, NULL, 0);
+                $$->contlist = newlist(nextQuadLabel() - 1);
+
+                if (!isLoop)
+                    yyerror("Continue statement outside of loop");
             }
             | block
-            | funcdef
-            | SEMICOLON
+            | funcdef { make_stmt(&$$); }
+            | SEMICOLON { make_stmt(&$$); }
             ;
 
 expr:       assignexpr { $$ = $1; }
@@ -480,7 +503,6 @@ elist_expr: { $$ = NULL; }
             }
             ;
 
-/* This rule helps with conflict of objectdef */
 notempty_elist: expr elist_expr {
                 $$ = $1;
                 if($2) $1->next = $2;
@@ -527,7 +549,7 @@ indexedelem: LBRACE expr COLON expr RBRACE {
             }
             ;
 
-block:      LBRACE { ++currentScope; } stmt_list RBRACE { SymTable_Hide(symTable, currentScope); --currentScope; }
+block:      LBRACE { ++currentScope; } stmt_list RBRACE { $$ = $3; SymTable_Hide(symTable, currentScope); --currentScope; }
             ;
 
 funcdef:    FUNCTION IDENTIFIER {
@@ -555,6 +577,8 @@ funcdef:    FUNCTION IDENTIFIER {
                 ++currentScope;
                 isFunctionScopes[currentScope] = 1;
             } idlist RPAREN { --currentScope; } block { 
+                patchlist($9->retlist, nextQuadLabel());
+                
                 Expr *funcExpr = newExpr(programfunc_e);
                 funcExpr->sym = $$;
                 emit(funcend, NULL, NULL, funcExpr, 0);
@@ -573,6 +597,8 @@ funcdef:    FUNCTION IDENTIFIER {
                 ++currentScope;
                 isFunctionScopes[currentScope] = 1;
             } idlist RPAREN { --currentScope; } block { 
+                patchlist($8->retlist, nextQuadLabel());
+
                 Expr *funcExpr = newExpr(programfunc_e);
                 funcExpr->sym = $$;
                 emit(funcend, NULL, NULL, funcExpr, 0);
@@ -659,26 +685,104 @@ const:      INTCONST {
             }
             ;
 
-ifstmt:     IF LPAREN expr RPAREN stmt ELSE stmt
-            | IF LPAREN expr RPAREN stmt %prec LOWER_THAN_ELSE
-            ;
-
-whilestmt:  WHILE LPAREN expr RPAREN { ++isLoop; } stmt { --isLoop; }
-
-forstmt:    FOR LPAREN elist SEMICOLON expr SEMICOLON elist { ++isLoop; } RPAREN stmt { --isLoop; }
-            ;
-
-returnstmt: RETURN expr SEMICOLON {
-                if(!isFunctionScope(currentScope)) 
-                    fprintf(stderr, "\033[1;31mError:\033[0m 'return' statement outside of a function (line %d)\n", yylineno);
-                else
-                    emit(ret, $2, NULL, NULL, 0);
+ifprefix:   IF LPAREN expr RPAREN {
+                Expr* evaluated_expr = emit_eval_var($3, symTable, currentScope);
+                emit(if_eq, evaluated_expr, newExpr_constbool(1), NULL, nextQuadLabel() + 2);
+                $$ = nextQuadLabel();
+                emit(jump, NULL, NULL, NULL, 0);
             }
-            | RETURN SEMICOLON {
-                if(!isFunctionScope(currentScope)) 
-                    fprintf(stderr, "\033[1;31mError:\033[0m 'return' statement outside of a function (line %d)\n", yylineno);
-                else
-                    emit(ret, NULL, NULL, NULL, 0);
+            ;
+
+ifstmt:     ifprefix stmt {
+                patchlabel($1, nextQuadLabel());
+                $$ = $2;
+            }
+            | ifprefix stmt ELSE jumpandsavepos stmt {
+                patchlabel($1, $4 + 1);
+                patchlabel($4, nextQuadLabel()); 
+                make_stmt(&$$);
+                $$->breaklist = mergelist($2->breaklist, $5->breaklist);
+                $$->contlist = mergelist($2->contlist, $5->contlist);
+                $$->retlist = mergelist($2->retlist, $5->retlist);
+            }
+            ;
+
+jumpandsavepos: {
+                    $$ = nextQuadLabel();
+                    emit(jump, NULL, NULL, NULL, 0);
+                }
+                ;
+
+whilestart: WHILE { $$ = nextQuadLabel(); }
+            ;
+
+whilecond:  LPAREN expr RPAREN {
+                Expr* evaluated_expr = emit_eval_var($2, symTable, currentScope);
+                emit(if_eq, evaluated_expr, newExpr_constbool(1), NULL, nextQuadLabel() + 2);
+                $$ = nextQuadLabel();
+                emit(jump, NULL, NULL, NULL, 0);
+            }
+            ;
+
+whilestmt:  whilestart { ++isLoop; } whilecond stmt {--isLoop;} {
+                emit(jump, NULL, NULL, NULL, $1);
+                patchlabel($3, nextQuadLabel());
+
+                make_stmt(&$$);
+                patchlist($4->breaklist, nextQuadLabel());
+                patchlist($4->contlist, $1);
+                
+                $$->breaklist = 0;
+                $$->contlist = 0;
+                $$->retlist = $4->retlist;
+            }
+            ;
+
+forprefix:  FOR { ++isLoop; } LPAREN elist M SEMICOLON expr SEMICOLON {
+                Expr* evaluated_expr = emit_eval_var($7, symTable, currentScope);
+                
+                $$ = malloc(sizeof(forstmt_t));
+                $$->test = $5;
+                $$->enter = nextQuadLabel();
+
+                emit(if_eq, evaluated_expr, newExpr_constbool(1), NULL, 0);
+            }
+            ;
+
+forstmt:    forprefix jumpandsavepos elist RPAREN jumpandsavepos stmt jumpandsavepos { --isLoop; } {
+                patchlabel($1->enter, $5 + 1);
+                patchlabel($7, $2 + 1);
+                patchlabel($2, nextQuadLabel());
+                patchlabel($5, $1->test);
+
+                make_stmt(&$$);
+                patchlist($6->breaklist, nextQuadLabel());
+                patchlist($6->contlist, $2 + 1);
+                
+                $$->breaklist = 0;
+                $$->contlist = 0;
+                $$->retlist = $6->retlist;
+            }
+            ;
+
+returnstmt: RETURN SEMICOLON {
+                if (!isFunctionScope(currentScope))
+                    yyerror("Return statement outside of function");
+
+                emit(ret, NULL, NULL, NULL, 0);
+                $$ = nextQuadLabel();
+                emit(jump, NULL, NULL, NULL, 0);
+            }
+            | RETURN expr SEMICOLON {
+                if (!isFunctionScope(currentScope))
+                    yyerror("Return statement outside of function");
+
+                if ($2->type == boolexpr_e)
+                    $2 = emit_eval_var($2, symTable, currentScope);
+
+                emit(ret, $2, NULL, NULL, 0);
+                $$ = nextQuadLabel();
+                emit(jump, NULL, NULL, NULL, 0);
             }
             ;
 

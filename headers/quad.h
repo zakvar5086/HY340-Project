@@ -51,12 +51,6 @@ typedef struct Expr {
     unsigned falselist;
 } Expr;
 
-typedef struct stmt {
-    unsigned breaklist;
-    unsigned contlist;
-    unsigned returnlist;
-} stmt_t;
-
 typedef struct Quad {
     iopcode op;
     Expr *result;
@@ -65,6 +59,18 @@ typedef struct Quad {
     unsigned label;
     unsigned line;
 } Quad;
+
+typedef struct stmt {
+    unsigned breaklist;
+    unsigned contlist;
+    unsigned retlist;
+} stmt_t;
+void make_stmt(stmt_t **s);
+
+typedef struct forstmt {
+    unsigned test;
+    unsigned enter;
+} forstmt_t;
 
 void emit(iopcode op, Expr *arg1, Expr *arg2, Expr *result, unsigned line);
 unsigned nextQuadLabel(void);
@@ -97,6 +103,7 @@ extern unsigned curr_quad;
 unsigned newlist(unsigned i);
 unsigned mergelist(unsigned l1, unsigned l2);
 void patchlist(unsigned list, unsigned label);
+void patchlabel(unsigned quad, unsigned label);
 Expr* evaluate(Expr* expr, SymTable *symTable, unsigned int currentScope);
 Expr* emit_eval(Expr* expr, SymTable *symTable, unsigned int currentScope);
 Expr* emit_eval_var(Expr* expr, SymTable *symTable, unsigned int currentScope);
