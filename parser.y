@@ -60,8 +60,8 @@ int isFunctionScope(unsigned int scope) {
 %left LBRACKET RBRACKET
 %left LPAREN RPAREN
 
-%type <symEntry> lvalue funcdef
-%type <exprNode> expr term assignexpr primary const call callsuffix normcall methodcall member
+%type <symEntry> funcdef
+%type <exprNode> expr term assignexpr primary const call callsuffix normcall methodcall member lvalue
 %type <exprNode> elist elist_expr notempty_elist objectdef indexed indexedelem indexedelem_list
 %type <intValue> M
 %type <stmtValue> stmt stmt_list ifstmt whilestmt forstmt block
@@ -258,67 +258,70 @@ term:       LPAREN expr RPAREN { $$ = $2; if($2->type == boolexpr_e) $2 = emit_e
                 $$->falselist = temp1;
             }
             | INCR lvalue {
-                if($2 && ($2->type == USERFUNC || $2->type == LIBFUNC))
+                if($2 && ($2->sym->type == USERFUNC || $2->sym->type == LIBFUNC))
                     fprintf(stderr, "\033[1;31mError:\033[0m Illegal action '++' to function (line %d)\n", yylineno);
 
-                Expr *lvalueExpr = newExpr_id($2);
-                emit(add, lvalueExpr, newExpr_constnum(1), lvalueExpr, 0);
-                $$ = lvalueExpr;
+                $$ = $2;
+                emit(add, $2, newExpr_constnum(1), $2, 0);
             }
             | lvalue INCR {
-                if($1 && ($1->type == USERFUNC || $1->type == LIBFUNC))
+                if($1 && ($1->sym->type == USERFUNC || $1->sym->type == LIBFUNC))
                     fprintf(stderr, "\033[1;31mError:\033[0m Illegal action '++' to function (line %d)\n", yylineno);
 
-                Expr *lvalueExpr = newExpr_id($1);
                 $$ = newExpr(var_e);
                 $$->sym = newtemp(symTable, currentScope);
-                emit(assign, lvalueExpr, NULL, $$, 0);
-                emit(add, lvalueExpr, newExpr_constnum(1), lvalueExpr, 0);
+                emit(assign, $1, NULL, $$, 0);
+                emit(add, $1, newExpr_constnum(1), $1, 0);
             }
             | DECR lvalue {
-                if($2 && ($2->type == USERFUNC || $2->type == LIBFUNC))
+                if($2 && ($2->sym->type == USERFUNC || $2->sym->type == LIBFUNC))
                     fprintf(stderr, "\033[1;31mError:\033[0m Illegal action '--' to function (line %d)\n", yylineno);
 
-                Expr *lvalueExpr = newExpr_id($2);
-                emit(sub, lvalueExpr, newExpr_constnum(1), lvalueExpr, 0);
-                $$ = lvalueExpr;
+                $$ = $2;
+                emit(sub, $2, newExpr_constnum(1), $2, 0);
             }
             | lvalue DECR {
-                if($1 && ($1->type == USERFUNC || $1->type == LIBFUNC))
+                if($1 && ($1->sym->type == USERFUNC || $1->sym->type == LIBFUNC))
                     fprintf(stderr, "\033[1;31mError:\033[0m Illegal action '--' to function (line %d)\n", yylineno);
 
-                Expr *lvalueExpr = newExpr_id($1);
                 $$ = newExpr(var_e);
                 $$->sym = newtemp(symTable, currentScope);
-                emit(assign, lvalueExpr, NULL, $$, 0);
-                emit(sub, lvalueExpr, newExpr_constnum(1), lvalueExpr, 0);
+                emit(assign, $1, NULL, $$, 0);
+                emit(sub, $1, newExpr_constnum(1), $1, 0);
             }
             | primary { $$ = $1; }
             ;
 
 assignexpr: lvalue ASSIGN expr {
-                if($1 && ($1->type == USERFUNC || $1->type == LIBFUNC))
-                    fprintf(stderr, "\033[1;31mError:\033[0m Illegal action '=' to function (line %d)\n", yylineno);
+                if($1 && $1->type == tableitem_e) {
+                    if($3->type == boolexpr_e) $3 = emit_eval($3, symTable, currentScope);
+                    emit(tablesetelem, $1->table, $1->index, $3, 0);
+                    
+                    $$ = newExpr(var_e);
+                    $$->sym = newtemp(symTable, currentScope);
+                    emit(tablegetelem, $1->table, $1->index, $$, 0);
+                } else if($1) {
+                    if($3->type == boolexpr_e) $3 = emit_eval($3, symTable, currentScope);
 
-                if($3->type == boolexpr_e) $3 = emit_eval($3, symTable, currentScope);
-
-                Expr *lvalueExpr = newExpr_id($1);
-                $$ = newExpr(var_e);
-                $$->sym = newtemp(symTable, currentScope);
-                emit(assign, $3, NULL, lvalueExpr, 0);
-                emit(assign, lvalueExpr, NULL, $$, 0);
+                    $$ = newExpr(var_e);
+                    $$->sym = newtemp(symTable, currentScope);
+                    emit(assign, $3, NULL, $1, 0);
+                    emit(assign, $1, NULL, $$, 0);
+                } else {
+                    $$ = NULL;
+                }
             }
             ;
 
-primary:    lvalue { 
+primary:    lvalue {
                 if($1) {
-                    if($1->type == USERFUNC) {
+                    if($1->sym && $1->sym->type == USERFUNC) {
                         $$ = newExpr(programfunc_e);
-                        $$->sym = $1;
-                    } else if($1->type == LIBFUNC) {
+                        $$->sym = $1->sym;
+                    } else if($1->sym && $1->sym->type == LIBFUNC) {
                         $$ = newExpr(libraryfunc_e);
-                        $$->sym = $1;
-                    } else $$ = newExpr_id($1);
+                        $$->sym = $1->sym;
+                    } else $$ = $1;
                 } else $$ = NULL;
             }
             | call { $$ = $1; }
@@ -336,22 +339,25 @@ lvalue:     IDENTIFIER {
                 int varType = (currentScope == 0) ? GLOBAL_VAR : LOCAL_VAR;
                 SymTableEntry *pCurr = SymTable_Lookup(symTable, $1, currentScope);
 
-                if(pCurr) $$ = pCurr;
-                else {
+                if(pCurr) {
+                    $$ = newExpr_id(pCurr);
+                } else {
                     int found = 0;
                     int scope;
-                    for(scope = currentScope - 1; scope > 0; scope--) {
+                    for(scope = currentScope - 1; scope >= 0; scope--) {
                         SymTableEntry *outer = SymTable_Lookup(symTable, $1, scope);
                         if(!outer) continue;
 
                         found = 1;
                         if(isFunctionScope(currentScope) &&
-                            (outer->type == LOCAL_VAR || outer->type == FORMAL) &&
-                            isLoop == 0 &&
-                            outer->isActive) {
+                           (outer->type == LOCAL_VAR || outer->type == FORMAL) &&
+                           isLoop == 0 &&
+                           outer->isActive) {
                             fprintf(stderr, "\033[1;31mError:\033[0m Cannot access symbol '%s' at line %d.\n", $1, yylineno);
                             $$ = NULL;
-                        } else $$ = outer;
+                        } else {
+                            $$ = newExpr_id(outer);
+                        }
                         break;
                     }
 
@@ -359,20 +365,23 @@ lvalue:     IDENTIFIER {
                         pCurr = SymTable_Lookup(symTable, $1, 0);
                         if(pCurr && (pCurr->type == LIBFUNC || 
                                     pCurr->type == USERFUNC || 
-                                    pCurr->type == GLOBAL_VAR))
-                            $$ = pCurr;
-                        else if(currentScope == 0) $$ = SymTable_Insert(symTable, $1, currentScope, yylineno, GLOBAL_VAR);
-                        else $$ = SymTable_Insert(symTable, $1, currentScope, yylineno, varType);
+                                    pCurr->type == GLOBAL_VAR)) {
+                            $$ = newExpr_id(pCurr);
+                        } else {
+                            SymTableEntry *newSym;
+                            if(currentScope == 0) newSym = SymTable_Insert(symTable, $1, currentScope, yylineno, GLOBAL_VAR);
+                            else newSym = SymTable_Insert(symTable, $1, currentScope, yylineno, varType);
+                            $$ = newExpr_id(newSym);
+                        }
                     }
                 }
-
             }
             | LOCAL IDENTIFIER {
                 SymTableEntry *pCurr = SymTable_Lookup(symTable, $2, currentScope);
 
                 if(pCurr) {
                     fprintf(stderr, "\033[1;31mError:\033[0m Redeclaration of symbol '%s' in scope %u (line %d)\n", $2, currentScope, yylineno);
-                    $$ = pCurr;
+                    $$ = newExpr_id(pCurr);
                 } else {
                     int varType = (currentScope == 0) ? GLOBAL_VAR : LOCAL_VAR;
                     SymTableEntry *libFunc = SymTable_Lookup(symTable, $2, 0);
@@ -382,42 +391,48 @@ lvalue:     IDENTIFIER {
                         $$ = NULL;
                     } else {
                         SymTableEntry *pNew = SymTable_Insert(symTable, $2, currentScope, yylineno, varType);
-                        $$ = pNew;
+                        $$ = newExpr_id(pNew);
                     }
                 }
             }
             | DBL_COLON IDENTIFIER {
                 SymTableEntry *pCurr = SymTable_Lookup(symTable, $2, 0);
 
-                if(pCurr) $$ = pCurr;
+                if(pCurr) $$ = newExpr_id(pCurr);
                 else {
                     fprintf(stderr, "\033[1;31mError:\033[0m Global symbol '::%s' not found (line %d)\n", $2, yylineno);
                     $$ = NULL;
                 }
             }
-            | member { $$ = NULL; }
+            | member {
+                $$ = $1;
+            }
             ;
 
 member:     lvalue DOT IDENTIFIER {
-                if($1) {
+                Expr *tableExpr = $1;
+                if(tableExpr) {
                     Expr *result = newExpr(tableitem_e);
-                    result->sym = $1;
+                    result->table = tableExpr;
                     result->index = newExpr_conststring($3);
                     $$ = result;
-                } else $$ = NULL;
+                } else {
+                    $$ = NULL;
+                }
             }
             | lvalue LBRACKET expr RBRACKET {
-                Expr *result = newExpr(tableitem_e);
-                result->sym = $1;
-                result->index = $3;
-                $$ = result;
+                Expr *tableExpr = $1;
+                if(tableExpr) {
+                    Expr *result = newExpr(tableitem_e);
+                    result->table = tableExpr;
+                    result->index = $3;
+                    $$ = result;
+                } else {
+                    $$ = NULL;
+                }
             }
-            | call DOT IDENTIFIER {
-                $$ = NULL;
-            }
-            | call LBRACKET expr RBRACKET {
-                $$ = NULL;
-            }
+            | call DOT IDENTIFIER { $$ = $1; }
+            | call LBRACKET expr RBRACKET { $$ = $1; }
             ;
 
 call:       call LPAREN elist RPAREN {
@@ -431,10 +446,10 @@ call:       call LPAREN elist RPAREN {
             | lvalue callsuffix {
                 if($1) {
                     Expr *func = NULL;
-                    if($1->type == USERFUNC) func = newExpr(programfunc_e);
-                    else if($1->type == LIBFUNC) func = newExpr(libraryfunc_e);
+                    if($1->sym && $1->sym->type == USERFUNC) func = newExpr(programfunc_e);
+                    else if($1->sym && $1->sym->type == LIBFUNC) func = newExpr(libraryfunc_e);
                     else func = newExpr(var_e);
-                    func->sym = $1;
+                    func->sym = $1->sym;
 
                     if($2) {
                         Expr *arg = $2;
@@ -553,12 +568,6 @@ block:      LBRACE { ++currentScope; } stmt_list RBRACE { $$ = $3; SymTable_Hide
             ;
 
 funcdef:    FUNCTION IDENTIFIER {
-                if($$) {
-                    Expr *func = newExpr(programfunc_e);
-                    func->sym = $$;
-                    emit(funcstart, NULL, NULL, func, 0);
-                }
-
                 SymTableEntry *libFunc = SymTable_Lookup(symTable, $2, 0);
 
                 if(libFunc && libFunc->type == LIBFUNC) {
@@ -573,35 +582,38 @@ funcdef:    FUNCTION IDENTIFIER {
                         $$ = SymTable_Insert(symTable, $2, currentScope, yylineno, USERFUNC);
                     }
                 }
+
+                Expr *func = newExpr(programfunc_e);
+                func->sym = $$;
+                emit(funcstart, NULL, NULL, func, 0);
             } LPAREN {
                 ++currentScope;
                 isFunctionScopes[currentScope] = 1;
             } idlist RPAREN { --currentScope; } block { 
                 patchlist($9->retlist, nextQuadLabel());
                 
-                Expr *funcExpr = newExpr(programfunc_e);
-                funcExpr->sym = $$;
-                emit(funcend, NULL, NULL, funcExpr, 0);
+                Expr *func = newExpr(programfunc_e);
+                func->sym = $$;
+                emit(funcend, NULL, NULL, func, 0);
             }
             | FUNCTION {
                 ++anon_func;
                 char anon_func_name[16];
                 snprintf(anon_func_name, sizeof(anon_func_name), "$f%d", anon_func);
-
                 $$ = SymTable_Insert(symTable, anon_func_name, currentScope, yylineno, USERFUNC);
 
-                Expr *funcExpr = newExpr(programfunc_e);
-                funcExpr->sym = $$;
-                emit(funcstart, NULL, NULL, funcExpr, 0);
+                Expr *func = newExpr(programfunc_e);
+                func->sym = $$;
+                emit(funcstart, NULL, NULL, func, 0);
             } LPAREN {
                 ++currentScope;
                 isFunctionScopes[currentScope] = 1;
             } idlist RPAREN { --currentScope; } block { 
                 patchlist($8->retlist, nextQuadLabel());
 
-                Expr *funcExpr = newExpr(programfunc_e);
-                funcExpr->sym = $$;
-                emit(funcend, NULL, NULL, funcExpr, 0);
+                Expr *func = newExpr(programfunc_e);
+                func->sym = $$;
+                emit(funcend, NULL, NULL, func, 0);
             }
             ;
 

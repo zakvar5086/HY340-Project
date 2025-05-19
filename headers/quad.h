@@ -41,6 +41,7 @@ typedef enum iopcode {
 typedef struct Expr {
     Expr_t type;
     SymTableEntry *sym;
+    struct Expr *table;
     struct Expr *index;
     double numConst;
     char *strConst;
@@ -65,6 +66,7 @@ typedef struct stmt {
     unsigned contlist;
     unsigned retlist;
 } stmt_t;
+
 void make_stmt(stmt_t **s);
 
 typedef struct forstmt {
@@ -99,7 +101,6 @@ extern Quad *quads;
 extern unsigned total_quads;
 extern unsigned curr_quad;
 
-
 unsigned newlist(unsigned i);
 unsigned mergelist(unsigned l1, unsigned l2);
 void patchlist(unsigned list, unsigned label);
@@ -107,5 +108,8 @@ void patchlabel(unsigned quad, unsigned label);
 Expr* evaluate(Expr* expr, SymTable *symTable, unsigned int currentScope);
 Expr* emit_eval(Expr* expr, SymTable *symTable, unsigned int currentScope);
 Expr* emit_eval_var(Expr* expr, SymTable *symTable, unsigned int currentScope);
+
+Expr* emit_iftableitem(Expr* expr);
+void emit_tablesetelem(Expr* table, Expr* index, Expr* value);
 
 #endif

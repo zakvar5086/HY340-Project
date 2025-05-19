@@ -373,3 +373,18 @@ Expr* emit_eval_var(Expr* expr, SymTable *symTable, unsigned int currentScope) {
 
     return res;
 }
+
+Expr* emit_iftableitem(Expr* expr) {
+    if(expr->type != tableitem_e) return expr;
+    
+    Expr* result = newExpr(var_e);
+    result->sym = newtemp(symTable, currentScope);
+    
+    emit(tablegetelem, expr->table, expr->index, result, 0);
+    
+    return result;
+}
+
+void emit_tablesetelem(Expr* table, Expr* index, Expr* value) {
+    emit(tablesetelem, table, index, value, 0);
+}
