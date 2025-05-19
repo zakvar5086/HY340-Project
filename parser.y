@@ -86,6 +86,7 @@ stmt_list:  { make_stmt(&$$); }
 
 stmt:       expr SEMICOLON {
                 $1 = emit_eval_var($1, symTable, currentScope);
+                make_stmt(&$$);
             }
             | ifstmt
             | whilestmt
@@ -94,7 +95,6 @@ stmt:       expr SEMICOLON {
                 make_stmt(&$$);
                 $$->retlist = newlist($1);
             }
-            ;
             | BREAK SEMICOLON {
                 make_stmt(&$$);
                 emit(jump, NULL, NULL, NULL, 0);
