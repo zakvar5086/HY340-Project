@@ -380,11 +380,27 @@ Expr* emit_iftableitem(Expr* expr) {
     Expr* result = newExpr(var_e);
     result->sym = newtemp(symTable, currentScope);
     
-    emit(tablegetelem, expr->table, expr->index, result, 0);
+    emit(tablegetelem, expr->index, result, expr->table, 0);
     
     return result;
 }
 
 void emit_tablesetelem(Expr* table, Expr* index, Expr* value) {
     emit(tablesetelem, table, index, value, 0);
+}
+
+Expr* create_table(SymTable *symTable, unsigned int currentScope) {
+    Expr* table = newExpr(newtable_e);
+    table->sym = newtemp(symTable, currentScope);
+    emit(tablecreate, NULL, NULL, table, 0);
+    return table;
+}
+
+void add_table_element(Expr* table, unsigned index, Expr* value) {
+    Expr* indexExpr = newExpr_constnum((double)index);
+    emit(tablesetelem, indexExpr, value, table, 0);
+}
+
+void add_indexed_element(Expr* table, Expr* index, Expr* value) {
+    emit(tablesetelem, index, value, table, 0);
 }

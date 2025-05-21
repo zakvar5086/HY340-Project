@@ -112,4 +112,8 @@ Expr* emit_eval_var(Expr* expr, SymTable *symTable, unsigned int currentScope);
 Expr* emit_iftableitem(Expr* expr);
 void emit_tablesetelem(Expr* table, Expr* index, Expr* value);
 
+Expr* create_table(SymTable *symTable, unsigned int currentScope);
+void add_table_element(Expr* table, unsigned index, Expr* value);
+void add_indexed_element(Expr* table, Expr* index, Expr* value);
+
 #endif

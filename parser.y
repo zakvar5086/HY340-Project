@@ -319,7 +319,8 @@ assignexpr: lvalue ASSIGN expr {
 
 primary:    lvalue {
                 if($1) {
-                    if($1->sym && $1->sym->type == USERFUNC) {
+                    if($1->type == tableitem_e) $$ = emit_iftableitem($1);
+                    else if($1->sym && $1->sym->type == USERFUNC) {
                         $$ = newExpr(programfunc_e);
                         $$->sym = $1->sym;
                     } else if($1->sym && $1->sym->type == LIBFUNC) {
@@ -420,9 +421,7 @@ member:     lvalue DOT IDENTIFIER {
                     result->table = tableExpr;
                     result->index = newExpr_conststring($3);
                     $$ = result;
-                } else {
-                    $$ = NULL;
-                }
+                } else $$ = NULL;
             }
             | lvalue LBRACKET expr RBRACKET {
                 Expr *tableExpr = $1;
@@ -431,9 +430,7 @@ member:     lvalue DOT IDENTIFIER {
                     result->table = tableExpr;
                     result->index = $3;
                     $$ = result;
-                } else {
-                    $$ = NULL;
-                }
+                } else $$ = NULL;
             }
             | call DOT IDENTIFIER { $$ = $1; }
             | call LBRACKET expr RBRACKET { $$ = $1; }
@@ -529,31 +526,42 @@ notempty_elist: expr elist_expr {
             }
             ;
 
-objectdef:  LBRACKET RBRACKET {
-                Expr *result = newExpr(newtable_e);
-                result->sym = newtemp(symTable, currentScope);
-                emit(tablecreate, NULL, NULL, result, 0);
-                $$ = result;
-            }
+objectdef:  LBRACKET RBRACKET { $$ = create_table(symTable, currentScope); }
             | LBRACKET notempty_elist RBRACKET {
-                Expr *result = newExpr(newtable_e);
-                result->sym = newtemp(symTable, currentScope);
-                emit(tablecreate, NULL, NULL, result, 0);
-                $$ = result;
+                $$ = create_table(symTable, currentScope);
+                
+                Expr* expr = $2;
+                unsigned index = 0;
+                
+                while(expr) {
+                    if(expr->type == boolexpr_e) 
+                        expr = emit_eval_var(expr, symTable, currentScope);
+                    
+                    add_table_element($$, index, expr);
+                    index++;
+                    expr = expr->next;
+                }
             }
             | LBRACKET indexed RBRACKET {
-                Expr *result = newExpr(newtable_e);
-                result->sym = newtemp(symTable, currentScope);
-                emit(tablecreate, NULL, NULL, result, 0);
-                $$ = result;
+                $$ = create_table(symTable, currentScope);
+                
+                Expr* indexedElem = $2;
+                
+                while(indexedElem) {
+                    if(indexedElem->index && indexedElem->next) {
+                        Expr* value = indexedElem->next;
+                        add_indexed_element($$, indexedElem->index, value);
+                    }
+                    
+                    if(indexedElem->next) indexedElem = indexedElem->next->next;
+                    else break;
+                }
             }
             ;
 
 indexed:    indexedelem indexedelem_list {
-                if($1) {
-                    $$ = $1;
-                    if($2) $1->next = $2;
-                } else $$ = $2;
+                $$ = $1;
+                if($2) $$->next = $2;
             }
             ;
 
@@ -565,7 +573,8 @@ indexedelem_list: { $$ = NULL; }
                 ;
 
 indexedelem: LBRACE expr COLON expr RBRACE {
-                $$ = NULL;
+                $$ = $2;
+                $$->next = $4;
             }
             ;
 
