@@ -261,8 +261,10 @@ term:       LPAREN expr RPAREN { $$ = $2; if($2->type == boolexpr_e) $2 = emit_e
                 if($2 && ($2->sym->type == USERFUNC || $2->sym->type == LIBFUNC))
                     fprintf(stderr, "\033[1;31mError:\033[0m Illegal action '++' to function (line %d)\n", yylineno);
 
-                $$ = $2;
+                $$ = newExpr(var_e);
+                $$->sym = newtemp(symTable, currentScope);
                 emit(add, $2, newExpr_constnum(1), $2, 0);
+                emit(assign, $2, NULL, $$, 0);
             }
             | lvalue INCR {
                 if($1 && ($1->sym->type == USERFUNC || $1->sym->type == LIBFUNC))
@@ -277,8 +279,10 @@ term:       LPAREN expr RPAREN { $$ = $2; if($2->type == boolexpr_e) $2 = emit_e
                 if($2 && ($2->sym->type == USERFUNC || $2->sym->type == LIBFUNC))
                     fprintf(stderr, "\033[1;31mError:\033[0m Illegal action '--' to function (line %d)\n", yylineno);
 
-                $$ = $2;
+                $$ = newExpr(var_e);
+                $$->sym = newtemp(symTable, currentScope);
                 emit(sub, $2, newExpr_constnum(1), $2, 0);
+                emit(assign, $2, NULL, $$, 0);
             }
             | lvalue DECR {
                 if($1 && ($1->sym->type == USERFUNC || $1->sym->type == LIBFUNC))
@@ -454,6 +458,7 @@ call:       call LPAREN elist RPAREN {
                     if($2) {
                         Expr *arg = $2;
                         while(arg) {
+                            if(arg->type == boolexpr_e) arg = emit_eval_var(arg, symTable, currentScope);
                             emit(param, arg, NULL, NULL, 0);
                             arg = arg->next;
                         }
