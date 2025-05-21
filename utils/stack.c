@@ -23,7 +23,7 @@ void *newStack(void) {
     return s;
 }
 
-void push(void *stack, void *item) {
+void pushStack(void *stack, void *item) {
     struct Stack *s = stack;
     if(!s) return;
     if(s->size == s->capacity) {
@@ -36,19 +36,19 @@ void push(void *stack, void *item) {
     s->data[s->size++] = item;
 }
 
-void *pop(void *stack) {
+void *popStack(void *stack) {
     struct Stack *s = stack;
     if(!s || s->size == 0) return NULL;
     return s->data[--s->size];
 }
 
-void *top(void *stack) {
+void *topStack(void *stack) {
     struct Stack *s = stack;
     if(!s || s->size == 0) return NULL;
     return s->data[s->size - 1];
 }
 
-void *isEmpty(void *stack) {
+void *isEmptyStack(void *stack) {
     struct Stack *s = stack;
     if(!s) return (void*)1;
     return (void*)(size_t)(s->size == 0);

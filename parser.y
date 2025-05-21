@@ -60,7 +60,7 @@ int isFunctionScope(unsigned int scope) {
 %left LBRACKET RBRACKET
 %left LPAREN RPAREN
 
-%type <symEntry> funcdef
+%type <symEntry> funcdef funcprefix
 %type <exprNode> expr term assignexpr primary const call callsuffix normcall methodcall member lvalue
 %type <exprNode> elist elist_expr notempty_elist objectdef indexed indexedelem indexedelem_list
 %type <intValue> M
@@ -100,7 +100,7 @@ stmt:       expr SEMICOLON {
                 emit(jump, NULL, NULL, NULL, 0);
                 $$->breaklist = newlist(nextQuadLabel() - 1);
 
-                if (!isLoop)
+                if(!isLoop)
                     yyerror("Break statement outside of loop");
             }
             | CONTINUE SEMICOLON {
@@ -108,7 +108,7 @@ stmt:       expr SEMICOLON {
                 emit(jump, NULL, NULL, NULL, 0);
                 $$->contlist = newlist(nextQuadLabel() - 1);
 
-                if (!isLoop)
+                if(!isLoop)
                     yyerror("Continue statement outside of loop");
             }
             | block
@@ -567,7 +567,7 @@ indexedelem: LBRACE expr COLON expr RBRACE {
 block:      LBRACE { ++currentScope; } stmt_list RBRACE { $$ = $3; SymTable_Hide(symTable, currentScope); --currentScope; }
             ;
 
-funcdef:    FUNCTION IDENTIFIER {
+funcprefix: FUNCTION IDENTIFIER {
                 SymTableEntry *libFunc = SymTable_Lookup(symTable, $2, 0);
 
                 if(libFunc && libFunc->type == LIBFUNC) {
@@ -580,40 +580,44 @@ funcdef:    FUNCTION IDENTIFIER {
                         $$ = NULL;
                     } else {
                         $$ = SymTable_Insert(symTable, $2, currentScope, yylineno, USERFUNC);
+
+                        Expr *funcExpr = newExpr(programfunc_e);
+                        funcExpr->sym = $$;
+                        emit(jump, NULL, NULL, NULL, 0);
+                        emit(funcstart, NULL, NULL, funcExpr, 0);
                     }
                 }
-
-                Expr *func = newExpr(programfunc_e);
-                func->sym = $$;
-                emit(funcstart, NULL, NULL, func, 0);
-            } LPAREN {
-                ++currentScope;
-                isFunctionScopes[currentScope] = 1;
-            } idlist RPAREN { --currentScope; } block { 
-                patchlist($9->retlist, nextQuadLabel());
-                
-                Expr *func = newExpr(programfunc_e);
-                func->sym = $$;
-                emit(funcend, NULL, NULL, func, 0);
             }
             | FUNCTION {
-                ++anon_func;
-                char anon_func_name[16];
-                snprintf(anon_func_name, sizeof(anon_func_name), "$f%d", anon_func);
-                $$ = SymTable_Insert(symTable, anon_func_name, currentScope, yylineno, USERFUNC);
+                char *name = malloc(16 * sizeof(char));
+                sprintf(name, "$f%d", anon_func++);
 
-                Expr *func = newExpr(programfunc_e);
-                func->sym = $$;
-                emit(funcstart, NULL, NULL, func, 0);
-            } LPAREN {
+                $$ = SymTable_Insert(symTable, name, currentScope, yylineno, USERFUNC);
+
+                if(!$$) fprintf(stderr, "\033[1;31mError:\033[0m Failed to create anonymous function '%s' (line %d)\n", name, yylineno);
+                else {
+                    Expr *funcExpr = newExpr(programfunc_e);
+                    funcExpr->sym = $$;
+                    emit(jump, NULL, NULL, NULL, 0);
+                    emit(funcstart, NULL, NULL, funcExpr, 0);
+                }
+                free(name);
+            }
+            ;
+ 
+funcdef:    funcprefix M LPAREN {
                 ++currentScope;
                 isFunctionScopes[currentScope] = 1;
-            } idlist RPAREN { --currentScope; } block { 
+            } idlist RPAREN { --currentScope; } block {
                 patchlist($8->retlist, nextQuadLabel());
 
-                Expr *func = newExpr(programfunc_e);
-                func->sym = $$;
-                emit(funcend, NULL, NULL, func, 0);
+                if($1) {
+                    Expr *funcExpr = newExpr(programfunc_e);
+                    funcExpr->sym = $1;
+                    emit(funcend, NULL, NULL, funcExpr, 0);
+                    patchlabel($2 - 2, nextQuadLabel());
+                }
+                $$ = $1;
             }
             ;
 
@@ -778,7 +782,7 @@ forstmt:    forprefix jumpandsavepos elist RPAREN jumpandsavepos stmt jumpandsav
             ;
 
 returnstmt: RETURN SEMICOLON {
-                if (!isFunctionScope(currentScope))
+                if(!isFunctionScope(currentScope))
                     yyerror("Return statement outside of function");
 
                 emit(ret, NULL, NULL, NULL, 0);
@@ -786,10 +790,10 @@ returnstmt: RETURN SEMICOLON {
                 emit(jump, NULL, NULL, NULL, 0);
             }
             | RETURN expr SEMICOLON {
-                if (!isFunctionScope(currentScope))
+                if(!isFunctionScope(currentScope))
                     yyerror("Return statement outside of function");
 
-                if ($2->type == boolexpr_e)
+                if($2->type == boolexpr_e)
                     $2 = emit_eval_var($2, symTable, currentScope);
 
                 emit(ret, $2, NULL, NULL, 0);

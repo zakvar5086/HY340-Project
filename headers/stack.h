@@ -4,10 +4,10 @@
 typedef struct Stack Stack;
 
 void *newStack(void);
-void push(void *stack, void *item);
-void *pop(void *stack);
-void *top(void *stack);
-void *isEmpty(void *stack);
+void pushStack(void *stack, void *item);
+void *popStack(void *stack);
+void *topStack(void *stack);
+void *isEmptyStack(void *stack);
 void *destroyStack(void *stack);
 void *printStack(void *stack);
 
