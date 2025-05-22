@@ -236,16 +236,38 @@ void printQuads() {
     
     for(unsigned i = 1; i < curr_quad; i++) {
         Quad q = quads[i];
-        const char *resultStr = exprToString(q.result);
-        const char *arg1Str = exprToString(q.arg1);
-        const char *arg2Str = exprToString(q.arg2);
+        
+        const char *opStr = getOpcodeName(q.op);
+        char resultStr[256] = "";
+        char arg1Str[256] = "";
+        char arg2Str[256] = "";
+        
+        if(q.result) {
+            const char *temp = exprToString(q.result);
+            if(temp && strcmp(temp, "NULL") != 0) {
+                strncpy(resultStr, temp, 255);
+                resultStr[255] = '\0';
+            }
+        }
+        
+        if(q.arg1) {
+            const char *temp = exprToString(q.arg1);
+            if(temp && strcmp(temp, "NULL") != 0) {
+                strncpy(arg1Str, temp, 255);
+                arg1Str[255] = '\0';
+            }
+        }
+        
+        if(q.arg2) {
+            const char *temp = exprToString(q.arg2);
+            if(temp && strcmp(temp, "NULL") != 0) {
+                strncpy(arg2Str, temp, 255);
+                arg2Str[255] = '\0';
+            }
+        }
+        
         printf("%-10d %-15s %-15s %-15s %-15s %-5d\n", 
-               i, 
-               getOpcodeName(q.op), 
-               (resultStr && strcmp(resultStr, "NULL") != 0) ? resultStr : "",
-               (arg1Str && strcmp(arg1Str, "NULL") != 0) ? arg1Str : "",
-               (arg2Str && strcmp(arg2Str, "NULL") != 0) ? arg2Str : "",
-               q.label);
+               i, opStr, resultStr, arg1Str, arg2Str, q.label);
     }
     printf("---------------------------------------------------------------------------------\n");
 }
@@ -321,7 +343,6 @@ unsigned mergelist(unsigned l1, unsigned l2) {
     }
 
     quads[i].label = l2;
-
     return l1;
 }
  
@@ -380,13 +401,13 @@ Expr* emit_iftableitem(Expr* expr) {
     Expr* result = newExpr(var_e);
     result->sym = newtemp(symTable, currentScope);
     
-    emit(tablegetelem, expr->index, result, expr->table, 0);
+    emit(tablegetelem, expr->index, expr->table, result, 0);
     
     return result;
 }
 
 void emit_tablesetelem(Expr* table, Expr* index, Expr* value) {
-    emit(tablesetelem, table, index, value, 0);
+    emit(tablesetelem, index, value, table, 0);
 }
 
 Expr* create_table(SymTable *symTable, unsigned int currentScope) {

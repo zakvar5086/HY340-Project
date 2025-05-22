@@ -62,7 +62,7 @@ int isFunctionScope(unsigned int scope) {
 
 %type <symEntry> funcdef funcprefix
 %type <exprNode> expr term assignexpr primary const call callsuffix normcall methodcall member lvalue
-%type <exprNode> elist elist_expr notempty_elist objectdef indexed indexedelem indexedelem_list
+%type <exprNode> elist elist_expr objectdef objectin indexed indexedelem indexedelem_list
 %type <intValue> M
 %type <stmtValue> stmt stmt_list ifstmt whilestmt forstmt block
 %type <intValue> ifprefix jumpandsavepos whilestart whilecond returnstmt
@@ -299,11 +299,11 @@ term:       LPAREN expr RPAREN { $$ = $2; if($2->type == boolexpr_e) $2 = emit_e
 assignexpr: lvalue ASSIGN expr {
                 if($1 && $1->type == tableitem_e) {
                     if($3->type == boolexpr_e) $3 = emit_eval($3, symTable, currentScope);
-                    emit(tablesetelem, $1->table, $1->index, $3, 0);
+                    emit(tablesetelem, $1->index, $3, $1->table, 0);
                     
                     $$ = newExpr(var_e);
                     $$->sym = newtemp(symTable, currentScope);
-                    emit(tablegetelem, $1->table, $1->index, $$, 0);
+                    emit(tablegetelem, $1->index, $$,  $1->table, 0);
                 } else if($1) {
                     if($3->type == boolexpr_e) $3 = emit_eval($3, symTable, currentScope);
 
@@ -520,44 +520,46 @@ elist_expr: { $$ = NULL; }
             }
             ;
 
-notempty_elist: expr elist_expr {
-                $$ = $1;
-                if($2) $1->next = $2;
-            }
-            ;
-
-objectdef:  LBRACKET RBRACKET { $$ = create_table(symTable, currentScope); }
-            | LBRACKET notempty_elist RBRACKET {
+objectin:   elist {
                 $$ = create_table(symTable, currentScope);
-                
-                Expr* expr = $2;
+
+                Expr* expr = $1;
                 unsigned index = 0;
-                
+
                 while(expr) {
+
                     if(expr->type == boolexpr_e) 
                         expr = emit_eval_var(expr, symTable, currentScope);
-                    
+
                     add_table_element($$, index, expr);
                     index++;
                     expr = expr->next;
                 }
             }
-            | LBRACKET indexed RBRACKET {
+            | indexed {
                 $$ = create_table(symTable, currentScope);
-                
-                Expr* indexedElem = $2;
-                
+
+                Expr* indexedElem = $1;
+                int count = 0;
+
                 while(indexedElem) {
-                    if(indexedElem->index && indexedElem->next) {
+                    if(indexedElem->next) {
+                        Expr* index = indexedElem;
                         Expr* value = indexedElem->next;
-                        add_indexed_element($$, indexedElem->index, value);
+
+                        if(value->type == boolexpr_e) 
+                            value = emit_eval_var(value, symTable, currentScope);
+
+                        add_indexed_element($$, index, value);
+                        indexedElem = value->next;
+                    } else {
+                        break;
                     }
-                    
-                    if(indexedElem->next) indexedElem = indexedElem->next->next;
-                    else break;
                 }
             }
             ;
+
+objectdef:  LBRACKET objectin RBRACKET { $$ = $2; }
 
 indexed:    indexedelem indexedelem_list {
                 $$ = $1;
