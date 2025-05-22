@@ -299,11 +299,11 @@ term:       LPAREN expr RPAREN { $$ = $2; if($2->type == boolexpr_e) $2 = emit_e
 assignexpr: lvalue ASSIGN expr {
                 if($1 && $1->type == tableitem_e) {
                     if($3->type == boolexpr_e) $3 = emit_eval($3, symTable, currentScope);
-                    emit(tablesetelem, $1->table, $1->index, $3, 0);
+                    emit(tablesetelem, $1->index, $3, $1->table, 0);
                     
                     $$ = newExpr(var_e);
                     $$->sym = newtemp(symTable, currentScope);
-                    emit(tablegetelem, $1->table, $1->index, $$, 0);
+                    emit(tablegetelem, $1->index, $$,  $1->table, 0);
                 } else if($1) {
                     if($3->type == boolexpr_e) $3 = emit_eval($3, symTable, currentScope);
 
