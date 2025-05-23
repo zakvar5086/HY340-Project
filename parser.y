@@ -12,6 +12,7 @@
 extern int yylex(void);
 extern FILE *yyin;
 
+extern unsigned int offset;
 extern int yylineno;
 void yyerror(const char *msg);
 
@@ -62,7 +63,7 @@ int isFunctionScope(unsigned int scope) {
 
 %type <symEntry> funcdef funcprefix
 %type <exprNode> expr term assignexpr primary const call callsuffix normcall methodcall member lvalue
-%type <exprNode> elist elist_expr objectdef indexed indexedelem indexedelem_list
+%type <exprNode> elist elist_expr objectdef indexed indexedelem indexedelem_list idlist_tail
 %type <intValue> M
 %type <stmtValue> stmt stmt_list ifstmt whilestmt forstmt block
 %type <intValue> ifprefix jumpandsavepos whilestart whilecond returnstmt
@@ -376,6 +377,7 @@ lvalue:     IDENTIFIER {
                             SymTableEntry *newSym;
                             if(currentScope == 0) newSym = SymTable_Insert(symTable, $1, currentScope, yylineno, GLOBAL_VAR);
                             else newSym = SymTable_Insert(symTable, $1, currentScope, yylineno, varType);
+                            newSym->offset = offset++;
                             $$ = newExpr_id(newSym);
                         }
                     }
@@ -396,6 +398,7 @@ lvalue:     IDENTIFIER {
                         $$ = NULL;
                     } else {
                         SymTableEntry *pNew = SymTable_Insert(symTable, $2, currentScope, yylineno, varType);
+                        pNew->offset = offset++;
                         $$ = newExpr_id(pNew);
                     }
                 }
@@ -652,40 +655,18 @@ idlist:     {  }
                             break;
                         }
                     }
-                    SymTable_Insert(symTable, $1, currentScope, yylineno, FORMAL);
+                    SymTableEntry *newEntry = SymTable_Insert(symTable, $1, currentScope, yylineno, FORMAL);
+                    newEntry->offset = offset++;
                 }
             } idlist_tail
             ;
 
-idlist_tail:
-            | COMMA IDENTIFIER { 
-                SymTableEntry *libFunc = SymTable_Lookup(symTable, $2, 0);
-
-                if(libFunc && libFunc->type == LIBFUNC) fprintf(stderr, "\033[1;31mError:\033[0m Cannot shadow a library function. '%s' (line %d)\n", $2, yylineno);
-                else {
-                    int scope;
-                    for(scope = currentScope; scope >= 0; scope--) {
-                        SymTableEntry *pCurr = SymTable_Lookup(symTable, $2, scope);
-
-                        if(pCurr) {
-                            if(scope == currentScope)
-                                fprintf(stderr, "\033[1;31mError:\033[0m Symbol '%s' declared in scope %u (line %d)\n", $2, currentScope, yylineno);
-                            else if(pCurr->isActive && 
-                                    !(pCurr->type == LIBFUNC || 
-                                    pCurr->type == USERFUNC || 
-                                    pCurr->type == GLOBAL_VAR))
-                                fprintf(stderr, "\033[1;31mError:\033[0m Symbol '%s' shadows existing symbol in outer scope %u (line %d)\n", $2, scope, yylineno);
-                            else if(scope == 0) {
-                                if(scope < currentScope) break;
-                                else  fprintf(stderr, "\033[1;31mError:\033[0m Symbol '%s' declared in scope %u (line %d)\n", $2, scope, yylineno);
-                            }
-                            break;
-                        }
-                    }
-                    SymTable_Insert(symTable, $2, currentScope, yylineno, FORMAL);
+idlist_tail:    { $$ = NULL; }
+                | COMMA IDENTIFIER idlist_tail {
+                    $$ = newExpr_conststring($2);
+                    $$->next = $3;
                 }
-            } idlist_tail
-            ;
+                ;
 
 const:      INTCONST {
                 $$ = newExpr_constnum((double)$1);

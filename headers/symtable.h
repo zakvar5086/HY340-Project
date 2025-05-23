@@ -17,6 +17,7 @@ typedef struct SymTableEntry {
     char *name;
     unsigned int scope;
     unsigned int line;
+    unsigned int offset;
     int isActive;
     SymbolType type;
 

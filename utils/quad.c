@@ -8,6 +8,8 @@ Quad *quads = NULL;
 unsigned total_quads = 0;
 unsigned curr_quad = 0;
 unsigned int temp_counter = 0;
+unsigned int offset;
+char labelStr[256] = "";
 
 #define EXPAND_SIZE 1024
 #define CURR_SIZE (total_quads * sizeof(Quad))
@@ -55,6 +57,7 @@ char *newtempname() {
 SymTableEntry *newtemp(SymTable *symTable, unsigned int scope) {
     char *name = newtempname();
     SymTableEntry *sym = SymTable_Insert(symTable, name, scope, 0, LOCAL_VAR);
+    sym->offset = offset++;
     free(name);
     return sym;
 }
@@ -266,8 +269,11 @@ void printQuads() {
             }
         }
         
-        printf("%-10d %-15s %-15s %-15s %-15s %-5d\n", 
-               i, opStr, resultStr, arg1Str, arg2Str, q.label);
+        if(q.label != 0) sprintf(labelStr, "%d", q.label);
+        else sprintf(labelStr, " ");
+        
+        printf("%-10d %-15s %-15s %-15s %-15s %-5s\n", 
+               i, opStr, resultStr, arg1Str, arg2Str, labelStr);
     }
     printf("---------------------------------------------------------------------------------\n");
 }
