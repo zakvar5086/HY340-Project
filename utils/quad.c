@@ -352,7 +352,7 @@ unsigned mergelist(unsigned l1, unsigned l2) {
     return l1;
 }
  
-Expr* evaluate(Expr* expr, SymTable *symTable, unsigned int currentScope) {
+Expr* evaluate(Expr* expr) {
     if(expr->type == boolexpr_e) return expr;
     
     Expr* result = newExpr(boolexpr_e);
@@ -365,7 +365,7 @@ Expr* evaluate(Expr* expr, SymTable *symTable, unsigned int currentScope) {
     return result;
 }
  
-Expr* emit_eval(Expr* expr, SymTable *symTable, unsigned int currentScope) {
+Expr* emit_eval(Expr* expr) {
     Expr *res = expr;
 
     if(expr->type != boolexpr_e) return expr;
@@ -383,7 +383,7 @@ Expr* emit_eval(Expr* expr, SymTable *symTable, unsigned int currentScope) {
     return res;
 }
 
-Expr* emit_eval_var(Expr* expr, SymTable *symTable, unsigned int currentScope) {
+Expr* emit_eval_var(Expr* expr) {
     Expr *res = expr;
 
     if(expr->type != boolexpr_e) return expr;
@@ -407,16 +407,40 @@ Expr* emit_iftableitem(Expr* expr) {
     Expr* result = newExpr(var_e);
     result->sym = newtemp(symTable, currentScope);
     
-    emit(tablegetelem, expr->index, expr->table, result, 0);
+    Expr* table = emit_iftableitem(expr->table);
+    emit(tablegetelem, table, expr->index, result, 0);
     
     return result;
 }
 
-void emit_tablesetelem(Expr* table, Expr* index, Expr* value) {
-    emit(tablesetelem, index, value, table, 0);
+Expr* member_item(Expr* lvalue, Expr* index) {
+    if(!lvalue) return NULL;
+    
+    lvalue = emit_iftableitem(lvalue);
+    
+    Expr* item = newExpr(tableitem_e);
+    item->table = lvalue;
+    item->index = index;
+    
+    return item;
 }
 
-Expr* create_table(SymTable *symTable, unsigned int currentScope) {
+Expr* handle_tableitem_assignment(Expr* lvalue, Expr* expr) {
+    if(!lvalue || lvalue->type != tableitem_e) return NULL;
+    
+    Expr* table = emit_iftableitem(lvalue->table);
+    
+    if(expr->type == boolexpr_e) expr = emit_eval_var(expr);
+    emit(tablesetelem, expr, lvalue->index, table, 0);
+    
+    Expr* result = newExpr(assignexpr_e);
+    result->sym = newtemp(symTable, currentScope);
+    emit(tablegetelem, table, lvalue->index, result, 0);
+    
+    return result;
+}
+
+Expr* create_table() {
     Expr* table = newExpr(newtable_e);
     table->sym = newtemp(symTable, currentScope);
     emit(tablecreate, NULL, NULL, table, 0);

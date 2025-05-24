@@ -105,14 +105,15 @@ unsigned newlist(unsigned i);
 unsigned mergelist(unsigned l1, unsigned l2);
 void patchlist(unsigned list, unsigned label);
 void patchlabel(unsigned quad, unsigned label);
-Expr* evaluate(Expr* expr, SymTable *symTable, unsigned int currentScope);
-Expr* emit_eval(Expr* expr, SymTable *symTable, unsigned int currentScope);
-Expr* emit_eval_var(Expr* expr, SymTable *symTable, unsigned int currentScope);
+Expr* evaluate(Expr* expr);
+Expr* emit_eval(Expr* expr);
+Expr* emit_eval_var(Expr* expr);
 
 Expr* emit_iftableitem(Expr* expr);
-void emit_tablesetelem(Expr* table, Expr* index, Expr* value);
+Expr* member_item(Expr* lvalue, Expr* index);
+Expr* handle_tableitem_assignment(Expr* lvalue, Expr* expr);
 
-Expr* create_table(SymTable *symTable, unsigned int currentScope);
+Expr* create_table();
 void add_table_element(Expr* table, unsigned index, Expr* value);
 void add_indexed_element(Expr* table, Expr* index, Expr* value);
 

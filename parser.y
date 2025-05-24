@@ -86,7 +86,7 @@ stmt_list:  { make_stmt(&$$); }
             ;
 
 stmt:       expr SEMICOLON {
-                $1 = emit_eval_var($1, symTable, currentScope);
+                $1 = emit_eval_var($1);
                 make_stmt(&$$);
             }
             | ifstmt
@@ -119,6 +119,9 @@ stmt:       expr SEMICOLON {
 
 expr:       assignexpr { $$ = $1; }
             | expr PLUS expr {
+                if($1->type == tableitem_e) $1 = emit_iftableitem($1);
+                if($3->type == tableitem_e) $3 = emit_iftableitem($3);
+                
                 if(!isArithExpr($1) || !isArithExpr($3))
                     fprintf(stderr, "\033[1;31mError:\033[0m Invalid operands to '+' operator (line %d)\n", yylineno);
 
@@ -127,22 +130,31 @@ expr:       assignexpr { $$ = $1; }
                 emit(add, $1, $3, $$, 0);
             }
             | expr MINUS expr {
+                if($1->type == tableitem_e) $1 = emit_iftableitem($1);
+                if($3->type == tableitem_e) $3 = emit_iftableitem($3);
+                
                 if(!isArithExpr($1) || !isArithExpr($3))
-                    fprintf(stderr, "\033[1;31mError:\033[0m Invalid operands to '-' operator (line %d)\n", yylineno);
+                    fprintf(stderr, "\033[1;31mError:\033[0m Invalid operands to '+' operator (line %d)\n", yylineno);
 
                 $$ = newExpr(arithexpr_e);
                 $$->sym = newtemp(symTable, currentScope);
                 emit(sub, $1, $3, $$, 0);
             }
             | expr MULTIPLY expr {
+                if($1->type == tableitem_e) $1 = emit_iftableitem($1);
+                if($3->type == tableitem_e) $3 = emit_iftableitem($3);
+                
                 if(!isArithExpr($1) || !isArithExpr($3))
-                    fprintf(stderr, "\033[1;31mError:\033[0m Invalid operands to '*' operator (line %d)\n", yylineno);
+                    fprintf(stderr, "\033[1;31mError:\033[0m Invalid operands to '+' operator (line %d)\n", yylineno);
 
                 $$ = newExpr(arithexpr_e);
                 $$->sym = newtemp(symTable, currentScope);
                 emit(mul, $1, $3, $$, 0);
             }
             | expr DIVIDE expr {
+                if($1->type == tableitem_e) $1 = emit_iftableitem($1);
+                if($3->type == tableitem_e) $3 = emit_iftableitem($3);
+
                 if(!isArithExpr($1) || !isArithExpr($3))
                     fprintf(stderr, "\033[1;31mError:\033[0m Invalid operands to '/' operator (line %d)\n", yylineno);
                 if($3->type == constnum_e && $3->numConst == 0)
@@ -153,6 +165,9 @@ expr:       assignexpr { $$ = $1; }
                 emit(div_op, $1, $3, $$, 0);
             }
             | expr MOD expr {
+                if($1->type == tableitem_e) $1 = emit_iftableitem($1);
+                if($3->type == tableitem_e) $3 = emit_iftableitem($3);
+
                 if(!isArithExpr($1) || !isArithExpr($3))
                     fprintf(stderr, "\033[1;31mError:\033[0m Invalid operands to '%%' operator (line %d)\n", yylineno);
 
@@ -160,76 +175,100 @@ expr:       assignexpr { $$ = $1; }
                 $$->sym = newtemp(symTable, currentScope);
                 emit(mod_op, $1, $3, $$, 0);
             }
-            | expr GREATER { if($1->type == boolexpr_e) $1 = emit_eval($1, symTable, currentScope) } expr {
-                if($4->type == boolexpr_e) $4 = emit_eval($4, symTable, currentScope);
+            | expr GREATER { 
+                if($1->type == boolexpr_e) $1 = emit_eval($1);
+                else if($1->type == tableitem_e) $1 = emit_iftableitem($1);
+            } expr {
+                if($4->type == boolexpr_e) $4 = emit_eval($4);
+                else if($4->type == tableitem_e) $4 = emit_iftableitem($4);
+                
                 $$ = newExpr(boolexpr_e);
-
                 $$->truelist = nextQuadLabel();
                 $$->falselist = nextQuadLabel() + 1;
 
                 emit(if_greater, $1, $4, NULL, 0);
                 emit(jump, NULL, NULL, NULL, 0);
             }
-            | expr GREATER_EQUAL { if($1->type == boolexpr_e) $1 = emit_eval($1, symTable, currentScope) } expr {
-                if($4->type == boolexpr_e) $4 = emit_eval($4, symTable, currentScope);
+            | expr GREATER_EQUAL { 
+                if($1->type == boolexpr_e) $1 = emit_eval($1);
+                else if($1->type == tableitem_e) $1 = emit_iftableitem($1);
+            } expr {
+                if($4->type == boolexpr_e) $4 = emit_eval($4);
+                else if($4->type == tableitem_e) $4 = emit_iftableitem($4);
+                
                 $$ = newExpr(boolexpr_e);
-
                 $$->truelist = nextQuadLabel();
                 $$->falselist = nextQuadLabel() + 1;
 
                 emit(if_greatereq, $1, $4, NULL, 0);
                 emit(jump, NULL, NULL, NULL, 0);
             }
-            | expr LESS { if($1->type == boolexpr_e) $1 = emit_eval($1, symTable, currentScope) } expr {
-                if($4->type == boolexpr_e) $4 = emit_eval($4, symTable, currentScope);
+            | expr LESS { 
+                if($1->type == boolexpr_e) $1 = emit_eval($1);
+                else if($1->type == tableitem_e) $1 = emit_iftableitem($1);
+            } expr {
+                if($4->type == boolexpr_e) $4 = emit_eval($4);
+                else if($4->type == tableitem_e) $4 = emit_iftableitem($4);
+                
                 $$ = newExpr(boolexpr_e);
-
                 $$->truelist = nextQuadLabel();
                 $$->falselist = nextQuadLabel() + 1;
 
                 emit(if_less, $1, $4, NULL, 0);
                 emit(jump, NULL, NULL, NULL, 0);
             }
-            | expr LESS_EQUAL { if($1->type == boolexpr_e) $1 = emit_eval($1, symTable, currentScope) } expr {
-                if($4->type == boolexpr_e) $4 = emit_eval($4, symTable, currentScope);
+            | expr LESS_EQUAL { 
+                if($1->type == boolexpr_e) $1 = emit_eval($1);
+                else if($1->type == tableitem_e) $1 = emit_iftableitem($1);
+            } expr {
+                if($4->type == boolexpr_e) $4 = emit_eval($4);
+                else if($4->type == tableitem_e) $4 = emit_iftableitem($4);
+                
                 $$ = newExpr(boolexpr_e);
-
                 $$->truelist = nextQuadLabel();
                 $$->falselist = nextQuadLabel() + 1;
 
                 emit(if_lesseq, $1, $4, NULL, 0);
                 emit(jump, NULL, NULL, NULL, 0);
             }
-            | expr EQUAL { if($1->type == boolexpr_e) $1 = emit_eval($1, symTable, currentScope) } expr {
-                if($4->type == boolexpr_e) $4 = emit_eval($4, symTable, currentScope);
+            | expr EQUAL { 
+                if($1->type == boolexpr_e) $1 = emit_eval($1);
+                else if($1->type == tableitem_e) $1 = emit_iftableitem($1);
+            } expr {
+                if($4->type == boolexpr_e) $4 = emit_eval($4);
+                else if($4->type == tableitem_e) $4 = emit_iftableitem($4);
+                
                 $$ = newExpr(boolexpr_e);
-
                 $$->truelist = nextQuadLabel();
                 $$->falselist = nextQuadLabel() + 1;
 
                 emit(if_eq, $1, $4, NULL, 0);
                 emit(jump, NULL, NULL, NULL, 0);
             }
-            | expr NEQUAL  { if($1->type == boolexpr_e) $1 = emit_eval($1, symTable, currentScope) } expr {
-                if($4->type == boolexpr_e) $4 = emit_eval($4, symTable, currentScope);
+            | expr NEQUAL  { 
+                if($1->type == boolexpr_e) $1 = emit_eval($1);
+                else if($1->type == tableitem_e) $1 = emit_iftableitem($1);
+            } expr {
+                if($4->type == boolexpr_e) $4 = emit_eval($4);
+                else if($4->type == tableitem_e) $4 = emit_iftableitem($4);
+                
                 $$ = newExpr(boolexpr_e);
-
                 $$->truelist = nextQuadLabel();
                 $$->falselist = nextQuadLabel() + 1;
 
                 emit(if_noteq, $1, $4, NULL, 0);
                 emit(jump, NULL, NULL, NULL, 0);
             }
-            | expr AND { if($1->type!=boolexpr_e) $1 = evaluate($1, symTable, currentScope); } M expr {
-                if($5->type != boolexpr_e) $5 = evaluate($5, symTable, currentScope);
+            | expr AND { if($1->type!=boolexpr_e) $1 = evaluate($1); } M expr {
+                if($5->type != boolexpr_e) $5 = evaluate($5);
                 patchlist($1->truelist, $4);
 
                 $$ = newExpr(boolexpr_e);
                 $$->truelist = $5->truelist;
                 $$->falselist = mergelist($1->falselist, $5->falselist);
             }
-            | expr OR { if($1->type!=boolexpr_e) $1 = evaluate($1, symTable, currentScope); } M expr {
-                if($5->type != boolexpr_e) $5 = evaluate($5, symTable, currentScope);
+            | expr OR { if($1->type!=boolexpr_e) $1 = evaluate($1); } M expr {
+                if($5->type != boolexpr_e) $5 = evaluate($5);
                 patchlist($1->falselist, $4);
 
                 $$ = newExpr(boolexpr_e);
@@ -241,7 +280,7 @@ expr:       assignexpr { $$ = $1; }
 
 M:          { $$ = nextQuadLabel(); }
 
-term:       LPAREN expr RPAREN { $$ = $2; if($2->type == boolexpr_e) $2 = emit_eval($2, symTable, currentScope); }
+term:       LPAREN expr RPAREN { $$ = $2; if($2->type == boolexpr_e) $2 = emit_eval($2); }
             | UMINUS expr %prec UMINUS {
                 if($2->type != arithexpr_e) fprintf(stderr, "\033[1;31mError:\033[0m Invalid operand to unary '-' operator (line %d)\n", yylineno);
                 $$ = newExpr(arithexpr_e);
@@ -249,7 +288,7 @@ term:       LPAREN expr RPAREN { $$ = $2; if($2->type == boolexpr_e) $2 = emit_e
                 emit(uminus, $2, NULL, $$, 0);
             }
             | NOT expr {
-                if($2->type != boolexpr_e) $2 = evaluate($2, symTable, currentScope);
+                if($2->type != boolexpr_e) $2 = evaluate($2);
                 
                 unsigned temp1 = $2->truelist;
                 unsigned temp2 = $2->falselist;
@@ -298,20 +337,17 @@ term:       LPAREN expr RPAREN { $$ = $2; if($2->type == boolexpr_e) $2 = emit_e
             ;
 
 assignexpr: lvalue ASSIGN expr {
-                if($1 && $1->type == tableitem_e) {
-                    if($3->type == boolexpr_e) $3 = emit_eval($3, symTable, currentScope);
-                    emit(tablesetelem, $1->index, $3, $1->table, 0);
-                    
-                    $$ = newExpr(var_e);
-                    $$->sym = newtemp(symTable, currentScope);
-                    emit(tablegetelem, $1->index, $$,  $1->table, 0);
-                } else if($1) {
-                    if($3->type == boolexpr_e) $3 = emit_eval($3, symTable, currentScope);
+                if($1) {
+                    if($1->type == tableitem_e) {
+                        $$ = handle_tableitem_assignment($1, $3);
+                    } else {
+                        if($3->type == boolexpr_e) $3 = emit_eval_var($3);
 
-                    $$ = newExpr(var_e);
-                    $$->sym = newtemp(symTable, currentScope);
-                    emit(assign, $3, NULL, $1, 0);
-                    emit(assign, $1, NULL, $$, 0);
+                        $$ = newExpr(assignexpr_e);
+                        $$->sym = newtemp(symTable, currentScope);
+                        emit(assign, $3, NULL, $1, 0);
+                        emit(assign, $1, NULL, $$, 0);
+                    }
                 } else {
                     $$ = NULL;
                 }
@@ -320,8 +356,9 @@ assignexpr: lvalue ASSIGN expr {
 
 primary:    lvalue {
                 if($1) {
-                    if($1->type == tableitem_e) $$ = emit_iftableitem($1);
-                    else if($1->sym && $1->sym->type == USERFUNC) {
+                    if($1->type == tableitem_e) {
+                        $$ = emit_iftableitem($1);
+                    } else if($1->sym && $1->sym->type == USERFUNC) {
                         $$ = newExpr(programfunc_e);
                         $$->sym = $1->sym;
                     } else if($1->sym && $1->sym->type == LIBFUNC) {
@@ -418,25 +455,29 @@ lvalue:     IDENTIFIER {
             ;
 
 member:     lvalue DOT IDENTIFIER {
-                Expr *tableExpr = $1;
-                if(tableExpr) {
-                    Expr *result = newExpr(tableitem_e);
-                    result->table = tableExpr;
-                    result->index = newExpr_conststring($3);
-                    $$ = result;
+                if($1) {
+                    Expr* index = newExpr_conststring($3);
+                    $$ = member_item($1, index);
                 } else $$ = NULL;
             }
             | lvalue LBRACKET expr RBRACKET {
-                Expr *tableExpr = $1;
-                if(tableExpr) {
-                    Expr *result = newExpr(tableitem_e);
-                    result->table = tableExpr;
-                    result->index = $3;
-                    $$ = result;
+                if($1) {
+                    if($3->type == boolexpr_e) $3 = emit_eval_var($3);
+                    $$ = member_item($1, $3);
                 } else $$ = NULL;
             }
-            | call DOT IDENTIFIER { $$ = $1; }
-            | call LBRACKET expr RBRACKET { $$ = $1; }
+            | call DOT IDENTIFIER { 
+                if($1) {
+                    Expr* index = newExpr_conststring($3);
+                    $$ = member_item($1, index);
+                } else $$ = NULL;
+            }
+            | call LBRACKET expr RBRACKET { 
+                if($1) {
+                    if($3->type == boolexpr_e) $3 = emit_eval_var($3);
+                    $$ = member_item($1, $3);
+                } else $$ = NULL;
+            }
             ;
 
 call:       call LPAREN elist RPAREN {
@@ -458,7 +499,7 @@ call:       call LPAREN elist RPAREN {
                     if($2) {
                         Expr *arg = $2;
                         while(arg) {
-                            if(arg->type == boolexpr_e) arg = emit_eval_var(arg, symTable, currentScope);
+                            if(arg->type == boolexpr_e) arg = emit_eval_var(arg);
                             emit(param, arg, NULL, NULL, 0);
                             arg = arg->next;
                         }
@@ -510,7 +551,7 @@ methodcall: DBL_DOT IDENTIFIER LPAREN elist RPAREN {
             ;
 
 elist:      expr elist_expr {
-                if($1->type == boolexpr_e) $1 = emit_eval_var($1, symTable, currentScope);
+                if($1->type == boolexpr_e) $1 = emit_eval_var($1);
                 $$ = $1;
                 if($2) $1->next = $2;                
             }
@@ -523,9 +564,9 @@ elist_expr: { $$ = NULL; }
             }
             ;
 
-objectdef:  LBRACKET RBRACKET { $$ = create_table(symTable, currentScope); }
+objectdef:  LBRACKET RBRACKET { $$ = create_table(); }
             | LBRACKET elist RBRACKET {
-                $$ = create_table(symTable, currentScope);
+                $$ = create_table();
                 
                 Expr* expr = $2;
                 unsigned index = 0;
@@ -537,7 +578,7 @@ objectdef:  LBRACKET RBRACKET { $$ = create_table(symTable, currentScope); }
                 }
             }
             | LBRACKET indexed RBRACKET {
-                Expr* table = create_table(symTable, currentScope);
+                Expr* table = create_table();
 
                 Expr* indexedElem = $2;
 
@@ -567,7 +608,7 @@ indexedelem_list: { $$ = NULL; }
                 ;
 
 indexedelem: LBRACE expr COLON expr RBRACE {
-                if($4->type == boolexpr_e) $4 = emit_eval_var($4, symTable, currentScope);
+                if($4->type == boolexpr_e) $4 = emit_eval_var($4);
                 $$ = $4;
                 $$->index = $2;
             }
@@ -689,7 +730,7 @@ const:      INTCONST {
             ;
 
 ifprefix:   IF LPAREN expr RPAREN {
-                Expr* evaluated_expr = emit_eval_var($3, symTable, currentScope);
+                Expr* evaluated_expr = emit_eval_var($3);
                 emit(if_eq, evaluated_expr, newExpr_constbool(1), NULL, nextQuadLabel() + 2);
                 $$ = nextQuadLabel();
                 emit(jump, NULL, NULL, NULL, 0);
@@ -720,7 +761,7 @@ whilestart: WHILE { $$ = nextQuadLabel(); }
             ;
 
 whilecond:  LPAREN expr RPAREN {
-                Expr* evaluated_expr = emit_eval_var($2, symTable, currentScope);
+                Expr* evaluated_expr = emit_eval_var($2);
                 emit(if_eq, evaluated_expr, newExpr_constbool(1), NULL, nextQuadLabel() + 2);
                 $$ = nextQuadLabel();
                 emit(jump, NULL, NULL, NULL, 0);
@@ -742,7 +783,7 @@ whilestmt:  whilestart { ++isLoop; } whilecond stmt {--isLoop;} {
             ;
 
 forprefix:  FOR { ++isLoop; } LPAREN elist M SEMICOLON expr SEMICOLON {
-                Expr* evaluated_expr = emit_eval_var($7, symTable, currentScope);
+                Expr* evaluated_expr = emit_eval_var($7);
                 
                 $$ = malloc(sizeof(forstmt_t));
                 $$->test = $5;
@@ -781,7 +822,7 @@ returnstmt: RETURN SEMICOLON {
                     yyerror("Return statement outside of function");
 
                 if($2->type == boolexpr_e)
-                    $2 = emit_eval_var($2, symTable, currentScope);
+                    $2 = emit_eval_var($2);
 
                 emit(ret, $2, NULL, NULL, 0);
                 $$ = nextQuadLabel();
