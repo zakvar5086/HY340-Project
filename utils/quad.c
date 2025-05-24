@@ -42,6 +42,13 @@ unsigned nextQuadLabel() { return curr_quad; }
 
 void resetTemp() { temp_counter = 0; }
 
+unsigned int istempname(char* s) {
+    return *s == '_';
+}
+unsigned int istempexpr(Expr* e) {
+    return e->sym && istempname(e->sym->name);
+}
+
 char *newtempname() {
     char *name = malloc(16 * sizeof(char));
     memset(name, 0, 16 * sizeof(char));
@@ -54,12 +61,15 @@ char *newtempname() {
     return name;
 }
 
-SymTableEntry *newtemp(SymTable *symTable, unsigned int scope) {
+SymTableEntry *newtemp() {
     char *name = newtempname();
-    SymTableEntry *sym = SymTable_Insert(symTable, name, scope, 0, LOCAL_VAR);
-    sym->offset = offset++;
+    SymTableEntry *tmp = SymTable_LookupAny(symTable, name);
+    if(!tmp){
+        tmp = SymTable_Insert(symTable, name, currentScope, 0, LOCAL_VAR);
+        tmp->offset = offset++;
+    }
     free(name);
-    return sym;
+    return tmp;
 }
 
 Expr *newExpr(Expr_t type) {
@@ -371,7 +381,7 @@ Expr* emit_eval(Expr* expr) {
     if(expr->type != boolexpr_e) return expr;
 
     res = newExpr(boolexpr_e);
-    res->sym = newtemp(symTable, currentScope);
+    res->sym = newtemp();
 
     patchlist(expr->truelist, nextQuadLabel());
     patchlist(expr->falselist, nextQuadLabel() + 2);
@@ -389,7 +399,7 @@ Expr* emit_eval_var(Expr* expr) {
     if(expr->type != boolexpr_e) return expr;
 
     res = newExpr(var_e);
-    res->sym = newtemp(symTable, currentScope);
+    res->sym = newtemp();
 
     patchlist(expr->truelist, nextQuadLabel());
     patchlist(expr->falselist, nextQuadLabel() + 2);
@@ -405,7 +415,7 @@ Expr* emit_iftableitem(Expr* expr) {
     if(expr->type != tableitem_e) return expr;
     
     Expr* result = newExpr(var_e);
-    result->sym = newtemp(symTable, currentScope);
+    result->sym = newtemp();
     
     Expr* table = emit_iftableitem(expr->table);
     emit(tablegetelem, table, expr->index, result, 0);
@@ -425,16 +435,30 @@ Expr* member_item(Expr* lvalue, Expr* index) {
     return item;
 }
 
+Expr* make_call(Expr *lvalue, Expr *reversed_elist) {
+    Expr *func = emit_iftableitem(lvalue);
+    while(reversed_elist) {
+        emit(param, reversed_elist, NULL, NULL, 0);
+        reversed_elist = reversed_elist->next;
+    }
+    emit(call, func, NULL, NULL, 0);
+
+    Expr *result = newExpr(var_e);
+    result->sym = istempexpr(lvalue) ? lvalue->sym : newtemp();
+    emit(getretval, NULL, NULL, result, 0);
+    return result;
+}
+
 Expr* handle_tableitem_assignment(Expr* lvalue, Expr* expr) {
     if(!lvalue || lvalue->type != tableitem_e) return NULL;
     
     Expr* table = emit_iftableitem(lvalue->table);
     
     if(expr->type == boolexpr_e) expr = emit_eval_var(expr);
-    emit(tablesetelem, expr, lvalue->index, table, 0);
+    emit(tablesetelem, lvalue->index, expr, table, 0);
     
     Expr* result = newExpr(assignexpr_e);
-    result->sym = newtemp(symTable, currentScope);
+    result->sym = newtemp();
     emit(tablegetelem, table, lvalue->index, result, 0);
     
     return result;
@@ -442,16 +466,16 @@ Expr* handle_tableitem_assignment(Expr* lvalue, Expr* expr) {
 
 Expr* create_table() {
     Expr* table = newExpr(newtable_e);
-    table->sym = newtemp(symTable, currentScope);
+    table->sym = newtemp();
     emit(tablecreate, NULL, NULL, table, 0);
     return table;
 }
 
 void add_table_element(Expr* table, unsigned index, Expr* value) {
     Expr* indexExpr = newExpr_constnum((double)index);
-    emit(tablesetelem, indexExpr, value, table, 0);
+    emit(tablesetelem, value, indexExpr, table, 0);
 }
 
 void add_indexed_element(Expr* table, Expr* index, Expr* value) {
-    emit(tablesetelem, index, value, table, 0);
+    emit(tablesetelem, value, index, table, 0);
 }

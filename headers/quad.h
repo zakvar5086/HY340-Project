@@ -74,12 +74,20 @@ typedef struct forstmt {
     unsigned enter;
 } forstmt_t;
 
+typedef struct FunctCont {
+    Expr* elist;
+    int method;
+    char* name;
+} FunctCont_t;
+
 void emit(iopcode op, Expr *arg1, Expr *arg2, Expr *result, unsigned line);
 unsigned nextQuadLabel(void);
 void expandQuads(void);
 void resetTemp(void);
+unsigned int istempname(char* s);
+unsigned int istempexpr(Expr* e);
 char *newtempname(void);
-SymTableEntry *newtemp(SymTable *symTable, unsigned int scope);
+SymTableEntry *newtemp();
 void initQuads(void);
 void printQuads(void);
 
@@ -111,6 +119,7 @@ Expr* emit_eval_var(Expr* expr);
 
 Expr* emit_iftableitem(Expr* expr);
 Expr* member_item(Expr* lvalue, Expr* index);
+Expr* make_call(Expr *lvalue, Expr *reversed_elist);
 Expr* handle_tableitem_assignment(Expr* lvalue, Expr* expr);
 
 Expr* create_table();
