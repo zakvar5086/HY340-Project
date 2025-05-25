@@ -246,7 +246,6 @@ M:          { $$ = nextQuadLabel(); }
 
 term:       LPAREN expr RPAREN { $$ = $2; if($2->type == boolexpr_e) $2 = emit_eval($2); }
             | MINUS expr %prec UMINUS {
-                if($2->type != arithexpr_e) fprintf(stderr, "\033[1;31mError:\033[0m Invalid operand to unary '-' operator (line %d)\n", yylineno);
                 $$ = newExpr(arithexpr_e);
                 $$->sym = istempexpr($2) ? $2->sym : newtemp();
                 emit(uminus, $2, NULL, $$, 0);

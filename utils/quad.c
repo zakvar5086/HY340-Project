@@ -440,8 +440,17 @@ Expr* member_item(Expr* lvalue, Expr* index) {
     return item;
 }
 
-Expr* make_call(Expr *lvalue, Expr *reversed_elist) {
+Expr* make_call(Expr *lvalue, Expr *elist) {
     Expr *func = emit_iftableitem(lvalue);
+
+    Expr *reversed_elist = NULL;
+    while(elist) {
+        Expr *next = elist->next;
+        elist->next = reversed_elist;
+        reversed_elist = elist;
+        elist = next;
+    }
+
     while(reversed_elist) {
         emit(param, reversed_elist, NULL, NULL, 0);
         reversed_elist = reversed_elist->next;
