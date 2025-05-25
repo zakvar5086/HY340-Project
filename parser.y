@@ -64,7 +64,7 @@ int isFunctionScope(unsigned int scope) {
 
 %type <symEntry> funcdef funcprefix
 %type <exprNode> expr term assignexpr primary const call member lvalue
-%type <exprNode> elist elist_expr objectdef indexed indexedelem indexedelem_list idlist_tail
+%type <exprNode> elist elist_expr notempty_elist objectdef indexed indexedelem indexedelem_list idlist_tail
 %type <intValue> M
 %type <stmtValue> stmt stmt_list ifstmt whilestmt forstmt block
 %type <intValue> ifprefix jumpandsavepos whilestart whilecond returnstmt
@@ -120,8 +120,7 @@ stmt:       expr SEMICOLON {
             | SEMICOLON { make_stmt(&$$); }
             ;
 
-expr:       assignexpr { $$ = $1; }
-            | expr PLUS expr {
+expr:       expr PLUS expr {
                 if($1->type == tableitem_e) $1 = emit_iftableitem($1);
                 if($3->type == tableitem_e) $3 = emit_iftableitem($3);
                 
@@ -279,6 +278,7 @@ expr:       assignexpr { $$ = $1; }
                 $$->falselist = $5->falselist;
             }
             | term { $$ = $1; }
+            | assignexpr { $$ = $1; }
             ;
 
 M:          { $$ = nextQuadLabel(); }
@@ -341,12 +341,12 @@ term:       LPAREN expr RPAREN { $$ = $2; if($2->type == boolexpr_e) $2 = emit_e
 
 assignexpr: lvalue ASSIGN expr {
                 if($1) {
-                    if($1->type == tableitem_e) {
+                    if($1->type == tableitem_e)
                         $$ = handle_tableitem_assignment($1, $3);
-                    } else {
+                    else {
                         if($3->type == boolexpr_e) $3 = emit_eval_var($3);
 
-                        $$ = newExpr(assignexpr_e);
+                        $$ = newExpr(var_e);
                         $$->sym = newtemp();
                         emit(assign, $3, NULL, $1, 0);
                         emit(assign, $1, NULL, $$, 0);
@@ -487,29 +487,35 @@ call:       call LPAREN elist RPAREN {
             | lvalue callsuffix {
                 $$ = newExpr(nil_e);
 
-                SymTableEntry *tmp;
-                if(!istempname($1->sym->name)) tmp = SymTable_LookupAny(symTable, $1->sym->name);
-                else tmp = $1->sym;
-
-                if(!tmp)
-                    fprintf(stderr, "\033[1;31mError:\033[0m Symbol '%s' not found (line %d)\n", $1->sym->name, yylineno);
-                else if(tmp->type == LOCAL && tmp->scope > currentScope)
-                    fprintf(stderr, "\033[1;31mError:\033[0m Cannot access local variable '%s' in outer scope %u (line %d)\n", $1->sym->name, tmp->scope, yylineno);
+                if(!$1) fprintf(stderr, "\033[1;31mError:\033[0m Invalid lvalue in call (line %d)\n", yylineno);
+                else if(!$1->sym) fprintf(stderr, "\033[1;31mError:\033[0m Symbol table entry is NULL (line %d)\n", yylineno);
                 else {
-                    $1->sym = tmp;
-                    $1 = emit_iftableitem($1);
-                    Expr *elist = $2->elist;
+                    SymTableEntry *tmp;
+                    if($1->sym->name && !istempname($1->sym)) tmp = SymTable_LookupAny(symTable, $1->sym->name);
+                    else tmp = $1->sym;
 
-                    if($2->method){
-                        Expr *tempExpr = $1;
-                        $1 = emit_iftableitem(member_item($1, newExpr_conststring($2->name)));
+                    if(!tmp) fprintf(stderr, "\033[1;31mError:\033[0m Symbol not found (line %d)\n", yylineno);
+                    else if(tmp->type == LOCAL && tmp->scope > currentScope)
+                        fprintf(stderr, "\033[1;31mError:\033[0m Cannot access local variable '%s' in outer scope %u (line %d)\n", 
+                                tmp->name ? tmp->name : "unknown", tmp->scope, yylineno);
+                    else {
+                        $1->sym = tmp;
+                        $1 = emit_iftableitem($1);
+                        Expr *elist = $2->elist;
 
-                        while(elist->next) elist = elist->next;
-                        elist->next = tempExpr;
+                        if($2->method) {
+                            Expr *tempExpr = $1;
+                            $1 = emit_iftableitem(member_item($1, newExpr_conststring($2->name)));
+
+                            while(elist && elist->next) elist = elist->next;
+                            if(elist) elist->next = tempExpr;
+                        }
+                        $$ = make_call($1, elist);
                     }
-                    $$ = make_call($1, elist);
+                    if($$->type == nil_e && $1->sym && $1->sym->name) 
+                        fprintf(stderr, "\033[1;31mError:\033[0m Call to non-function '%s' (line %d)\n", 
+                                $1->sym->name, yylineno);
                 }
-                if($$->type == nil_e) fprintf(stderr, "\033[1;31mError:\033[0m Call to non-function '%s' (line %d)\n", $1->sym->name, yylineno);
             }
             | LPAREN funcdef RPAREN LPAREN elist RPAREN {
                 if($2) {
@@ -541,7 +547,8 @@ methodcall: DBL_DOT IDENTIFIER LPAREN elist RPAREN {
             }
             ;
 
-elist:      expr elist_expr {
+elist:      { $$ = NULL; }
+            | expr elist_expr {
                 if($1->type == boolexpr_e) $1 = emit_eval_var($1);
                 $$ = $1;
                 if($2) $1->next = $2;                
@@ -555,8 +562,16 @@ elist_expr: { $$ = NULL; }
             }
             ;
 
+/* This rule helps with conflict of objectdef */
+notempty_elist: expr elist_expr {
+                if($1->type == boolexpr_e) $1 = emit_eval_var($1);
+                $$ = $1;
+                if($2) $1->next = $2;
+            }
+            ;
+
 objectdef:  LBRACKET RBRACKET { $$ = create_table(); }
-            | LBRACKET elist RBRACKET {
+            | LBRACKET notempty_elist RBRACKET {
                 $$ = create_table();
                 
                 Expr* expr = $2;

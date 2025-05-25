@@ -84,7 +84,7 @@ void emit(iopcode op, Expr *arg1, Expr *arg2, Expr *result, unsigned line);
 unsigned nextQuadLabel(void);
 void expandQuads(void);
 void resetTemp(void);
-unsigned int istempname(char* s);
+unsigned int istempname(SymTableEntry *s);
 unsigned int istempexpr(Expr* e);
 char *newtempname(void);
 SymTableEntry *newtemp();

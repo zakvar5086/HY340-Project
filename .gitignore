@@ -25,3 +25,4 @@ test.alpha
 alpha_parser
 remake.sh
 runTests.sh
+parser.output

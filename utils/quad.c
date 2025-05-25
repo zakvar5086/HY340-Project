@@ -42,11 +42,15 @@ unsigned nextQuadLabel() { return curr_quad; }
 
 void resetTemp() { temp_counter = 0; }
 
-unsigned int istempname(char* s) {
-    return *s == '_';
+unsigned int istempname(SymTableEntry *s) {
+    if (!s || !s->name) return 0;
+    return *(s->name) == '_';
 }
+
 unsigned int istempexpr(Expr* e) {
-    return e->sym && istempname(e->sym->name);
+    if (!e || !e->sym) return 0;
+    if (e->type != var_e) return 0;
+    return istempname(e->sym);
 }
 
 char *newtempname() {
@@ -457,7 +461,7 @@ Expr* handle_tableitem_assignment(Expr* lvalue, Expr* expr) {
     if(expr->type == boolexpr_e) expr = emit_eval_var(expr);
     emit(tablesetelem, lvalue->index, expr, table, 0);
     
-    Expr* result = newExpr(assignexpr_e);
+    Expr* result = newExpr(var_e);
     result->sym = newtemp();
     emit(tablegetelem, table, lvalue->index, result, 0);
     
