@@ -121,140 +121,101 @@ stmt:       expr SEMICOLON {
             ;
 
 expr:       expr PLUS expr {
-                if($1->type == tableitem_e) $1 = emit_iftableitem($1);
-                if($3->type == tableitem_e) $3 = emit_iftableitem($3);
-                
                 if(!isArithExpr($1) || !isArithExpr($3))
                     fprintf(stderr, "\033[1;31mError:\033[0m Invalid operands to '+' operator (line %d)\n", yylineno);
 
                 $$ = newExpr(arithexpr_e);
-                $$->sym = istempexpr($1) ? $1->sym : newtemp();
+                $$->sym = istempexpr($1) ? $1->sym : newtemp();;
                 emit(add, $1, $3, $$, 0);
             }
             | expr MINUS expr {
-                if($1->type == tableitem_e) $1 = emit_iftableitem($1);
-                if($3->type == tableitem_e) $3 = emit_iftableitem($3);
-                
                 if(!isArithExpr($1) || !isArithExpr($3))
                     fprintf(stderr, "\033[1;31mError:\033[0m Invalid operands to '-' operator (line %d)\n", yylineno);
 
                 $$ = newExpr(arithexpr_e);
-                $$->sym = istempexpr($1) ? $1->sym : newtemp();
+                $$->sym = istempexpr($1) ? $1->sym : newtemp();;
                 emit(sub, $1, $3, $$, 0);
             }
             | expr MULTIPLY expr {
-                if($1->type == tableitem_e) $1 = emit_iftableitem($1);
-                if($3->type == tableitem_e) $3 = emit_iftableitem($3);
-                
                 if(!isArithExpr($1) || !isArithExpr($3))
                     fprintf(stderr, "\033[1;31mError:\033[0m Invalid operands to '*' operator (line %d)\n", yylineno);
 
                 $$ = newExpr(arithexpr_e);
-                $$->sym = istempexpr($1) ? $1->sym : newtemp();
+                $$->sym = istempexpr($1) ? $1->sym : newtemp();;
                 emit(mul, $1, $3, $$, 0);
             }
             | expr DIVIDE expr {
-                if($1->type == tableitem_e) $1 = emit_iftableitem($1);
-                if($3->type == tableitem_e) $3 = emit_iftableitem($3);
-
                 if(!isArithExpr($1) || !isArithExpr($3))
                     fprintf(stderr, "\033[1;31mError:\033[0m Invalid operands to '/' operator (line %d)\n", yylineno);
                 if($3->type == constnum_e && $3->numConst == 0)
                     fprintf(stderr, "\033[1;31mError:\033[0m Division by zero (line %d)\n", yylineno);
 
                 $$ = newExpr(arithexpr_e);
-                $$->sym = istempexpr($1) ? $1->sym : newtemp();
+                $$->sym = istempexpr($1) ? $1->sym : newtemp();;
                 emit(div_op, $1, $3, $$, 0);
             }
             | expr MOD expr {
-                if($1->type == tableitem_e) $1 = emit_iftableitem($1);
-                if($3->type == tableitem_e) $3 = emit_iftableitem($3);
-
                 if(!isArithExpr($1) || !isArithExpr($3))
                     fprintf(stderr, "\033[1;31mError:\033[0m Invalid operands to '%%' operator (line %d)\n", yylineno);
 
                 $$ = newExpr(arithexpr_e);
-                $$->sym = istempexpr($1) ? $1->sym : newtemp();
+                $$->sym = istempexpr($1) ? $1->sym : newtemp();;
                 emit(mod_op, $1, $3, $$, 0);
             }
-            | expr GREATER { 
-                if($1->type == boolexpr_e) $1 = emit_eval($1);
-                else if($1->type == tableitem_e) $1 = emit_iftableitem($1);
-            } expr {
+            | expr GREATER { if($1->type == boolexpr_e) $1 = emit_eval($1) } expr {
                 if($4->type == boolexpr_e) $4 = emit_eval($4);
-                else if($4->type == tableitem_e) $4 = emit_iftableitem($4);
-                
                 $$ = newExpr(boolexpr_e);
+
                 $$->truelist = nextQuadLabel();
                 $$->falselist = nextQuadLabel() + 1;
 
                 emit(if_greater, $1, $4, NULL, 0);
                 emit(jump, NULL, NULL, NULL, 0);
             }
-            | expr GREATER_EQUAL { 
-                if($1->type == boolexpr_e) $1 = emit_eval($1);
-                else if($1->type == tableitem_e) $1 = emit_iftableitem($1);
-            } expr {
+            | expr GREATER_EQUAL { if($1->type == boolexpr_e) $1 = emit_eval($1) } expr {
                 if($4->type == boolexpr_e) $4 = emit_eval($4);
-                else if($4->type == tableitem_e) $4 = emit_iftableitem($4);
-                
                 $$ = newExpr(boolexpr_e);
+
                 $$->truelist = nextQuadLabel();
                 $$->falselist = nextQuadLabel() + 1;
 
                 emit(if_greatereq, $1, $4, NULL, 0);
                 emit(jump, NULL, NULL, NULL, 0);
             }
-            | expr LESS { 
-                if($1->type == boolexpr_e) $1 = emit_eval($1);
-                else if($1->type == tableitem_e) $1 = emit_iftableitem($1);
-            } expr {
+            | expr LESS { if($1->type == boolexpr_e) $1 = emit_eval($1) } expr {
                 if($4->type == boolexpr_e) $4 = emit_eval($4);
-                else if($4->type == tableitem_e) $4 = emit_iftableitem($4);
-                
                 $$ = newExpr(boolexpr_e);
+
                 $$->truelist = nextQuadLabel();
                 $$->falselist = nextQuadLabel() + 1;
 
                 emit(if_less, $1, $4, NULL, 0);
                 emit(jump, NULL, NULL, NULL, 0);
             }
-            | expr LESS_EQUAL { 
-                if($1->type == boolexpr_e) $1 = emit_eval($1);
-                else if($1->type == tableitem_e) $1 = emit_iftableitem($1);
-            } expr {
+            | expr LESS_EQUAL { if($1->type == boolexpr_e) $1 = emit_eval($1) } expr {
                 if($4->type == boolexpr_e) $4 = emit_eval($4);
-                else if($4->type == tableitem_e) $4 = emit_iftableitem($4);
-                
                 $$ = newExpr(boolexpr_e);
+
                 $$->truelist = nextQuadLabel();
                 $$->falselist = nextQuadLabel() + 1;
 
                 emit(if_lesseq, $1, $4, NULL, 0);
                 emit(jump, NULL, NULL, NULL, 0);
             }
-            | expr EQUAL { 
-                if($1->type == boolexpr_e) $1 = emit_eval($1);
-                else if($1->type == tableitem_e) $1 = emit_iftableitem($1);
-            } expr {
+            | expr EQUAL { if($1->type == boolexpr_e) $1 = emit_eval($1) } expr {
                 if($4->type == boolexpr_e) $4 = emit_eval($4);
-                else if($4->type == tableitem_e) $4 = emit_iftableitem($4);
-                
                 $$ = newExpr(boolexpr_e);
+
                 $$->truelist = nextQuadLabel();
                 $$->falselist = nextQuadLabel() + 1;
 
                 emit(if_eq, $1, $4, NULL, 0);
                 emit(jump, NULL, NULL, NULL, 0);
             }
-            | expr NEQUAL  { 
-                if($1->type == boolexpr_e) $1 = emit_eval($1);
-                else if($1->type == tableitem_e) $1 = emit_iftableitem($1);
-            } expr {
+            | expr NEQUAL  { if($1->type == boolexpr_e) $1 = emit_eval($1) } expr {
                 if($4->type == boolexpr_e) $4 = emit_eval($4);
-                else if($4->type == tableitem_e) $4 = emit_iftableitem($4);
-                
                 $$ = newExpr(boolexpr_e);
+
                 $$->truelist = nextQuadLabel();
                 $$->falselist = nextQuadLabel() + 1;
 
@@ -304,37 +265,77 @@ term:       LPAREN expr RPAREN { $$ = $2; if($2->type == boolexpr_e) $2 = emit_e
                 if($2 && $2->sym && ($2->sym->type == USERFUNC || $2->sym->type == LIBFUNC))
                     fprintf(stderr, "\033[1;31mError:\033[0m Illegal action '++' to function (line %d)\n", yylineno);
 
-                $$ = newExpr(var_e);
+                $$ = newExpr(arithexpr_e);
                 $$->sym = newtemp();
-                emit(add, $2, newExpr_constnum(1), $2, 0);
-                emit(assign, $2, NULL, $$, 0);
+
+                if($2->type == tableitem_e) {
+                    Expr *tmp = emit_iftableitem($2);
+
+                    emit(add, tmp, newExpr_constnum(1), tmp, 0);
+                    emit(assign, tmp, NULL, $$, 0);
+                    emit(tablesetelem, $2->index, tmp, $2->table, 0);
+                    $$ = tmp;
+                } else {
+                    emit(add, $2, newExpr_constnum(1), $2, 0);
+                    emit(assign, $2, NULL, $$, 0);
+                }
             }
             | lvalue INCR {
                 if($1 && $1->sym && ($1->sym->type == USERFUNC || $1->sym->type == LIBFUNC))
                     fprintf(stderr, "\033[1;31mError:\033[0m Illegal action '++' to function (line %d)\n", yylineno);
 
-                $$ = newExpr(var_e);
+                $$ = newExpr(arithexpr_e);
                 $$->sym = newtemp();
-                emit(assign, $1, NULL, $$, 0);
-                emit(add, $1, newExpr_constnum(1), $1, 0);
+
+                if($1->type == tableitem_e) {
+                    Expr *tmp = emit_iftableitem($1);
+
+                    emit(assign, tmp, NULL, $$, 0);
+                    emit(add, tmp, newExpr_constnum(1), tmp, 0);
+                    emit(tablesetelem, $1->index, tmp, $1->table, 0);
+                    $$ = tmp;
+                } else {
+                    emit(assign, $1, NULL, $$, 0);
+                    emit(add, $1, newExpr_constnum(1), $1, 0);
+                }
             }
             | DECR lvalue {
                 if($2 && $2->sym && ($2->sym->type == USERFUNC || $2->sym->type == LIBFUNC))
                     fprintf(stderr, "\033[1;31mError:\033[0m Illegal action '--' to function (line %d)\n", yylineno);
 
-                $$ = newExpr(var_e);
+                $$ = newExpr(arithexpr_e);
                 $$->sym = newtemp();
-                emit(sub, $2, newExpr_constnum(1), $2, 0);
-                emit(assign, $2, NULL, $$, 0);
+
+                if($2->type == tableitem_e) {
+                    Expr *tmp = emit_iftableitem($2);
+
+                    emit(sub, tmp, newExpr_constnum(1), tmp, 0);
+                    emit(assign, tmp, NULL, $$, 0);
+                    emit(tablesetelem, $2->index, tmp, $2->table, 0);
+                    $$ = tmp;
+                } else {
+                    emit(sub, $2, newExpr_constnum(1), $2, 0);
+                    emit(assign, $2, NULL, $$, 0);
+                }
             }
             | lvalue DECR {
                 if($1 && $1->sym && ($1->sym->type == USERFUNC || $1->sym->type == LIBFUNC))
                     fprintf(stderr, "\033[1;31mError:\033[0m Illegal action '--' to function (line %d)\n", yylineno);
 
-                $$ = newExpr(var_e);
+                $$ = newExpr(arithexpr_e);
                 $$->sym = newtemp();
-                emit(assign, $1, NULL, $$, 0);
-                emit(sub, $1, newExpr_constnum(1), $1, 0);
+
+                if($1->type == tableitem_e) {
+                    Expr *tmp = emit_iftableitem($1);
+
+                    emit(assign, tmp, NULL, $$, 0);
+                    emit(sub, tmp, newExpr_constnum(1), tmp, 0);
+                    emit(tablesetelem, $1->index, tmp, $1->table, 0);
+                    $$ = tmp;
+                } else {
+                    emit(assign, $1, NULL, $$, 0);
+                    emit(sub, $1, newExpr_constnum(1), $1, 0);
+                }
             }
             | primary { $$ = $1; }
             ;

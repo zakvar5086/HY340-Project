@@ -420,6 +420,7 @@ Expr* emit_iftableitem(Expr* expr) {
     
     Expr* result = newExpr(var_e);
     result->sym = newtemp();
+    result->strConst = (char *)result->sym->name;
     
     Expr* table = emit_iftableitem(expr->table);
     emit(tablegetelem, table, expr->index, result, 0);
