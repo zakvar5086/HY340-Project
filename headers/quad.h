@@ -120,6 +120,7 @@ Expr* emit_eval_var(Expr* expr);
 Expr* emit_iftableitem(Expr* expr);
 Expr* member_item(Expr* lvalue, Expr* index);
 Expr* make_call(Expr *lvalue, Expr *reversed_elist);
+Expr* handle_method_call(Expr* lvalue, FunctCont_t* callsuffix);
 Expr* handle_tableitem_assignment(Expr* lvalue, Expr* expr);
 
 Expr* create_table();

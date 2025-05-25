@@ -453,6 +453,20 @@ Expr* make_call(Expr *lvalue, Expr *reversed_elist) {
     return result;
 }
 
+Expr* handle_method_call(Expr* lvalue, FunctCont_t* callsuffix) {
+    lvalue = emit_iftableitem(lvalue);
+    Expr *elist = callsuffix->elist;
+
+    if(callsuffix->method) {
+        Expr *tempExpr = lvalue;
+        lvalue = emit_iftableitem(member_item(lvalue, newExpr_conststring(callsuffix->name)));
+
+        while(elist && elist->next) elist = elist->next;
+        if(elist) elist->next = tempExpr;
+    }
+    return make_call(lvalue, elist);
+}
+
 Expr* handle_tableitem_assignment(Expr* lvalue, Expr* expr) {
     if(!lvalue || lvalue->type != tableitem_e) return NULL;
     
