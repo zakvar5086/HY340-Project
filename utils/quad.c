@@ -5,14 +5,14 @@ extern SymTable *symTable;
 extern unsigned int currentScope;
 
 Quad *quads = NULL;
-unsigned total_quads = 0;
+unsigned quadsSize = 0;
 unsigned curr_quad = 0;
 unsigned int temp_counter = 0;
 unsigned int offset;
 char labelStr[256] = "";
 
 #define EXPAND_SIZE 1024
-#define CURR_SIZE (total_quads * sizeof(Quad))
+#define CURR_SIZE (quadsSize * sizeof(Quad))
 #define NEW_SIZE (EXPAND_SIZE * sizeof(Quad) + CURR_SIZE)
 
 void initQuads() {
@@ -22,19 +22,19 @@ void initQuads() {
         fprintf(stderr, "Error: Memory allocation failed for quads\n");
         exit(1);
     }
-    total_quads = EXPAND_SIZE;
+    quadsSize = EXPAND_SIZE;
     curr_quad = 1;
     temp_counter = 0;
 }
 
 void expandQuads() {
-    if(curr_quad == total_quads) {
+    if(curr_quad == quadsSize) {
         quads = realloc(quads, NEW_SIZE);
         if(!quads) {
             fprintf(stderr, "Error: Memory reallocation failed for quads\n");
             exit(1);
         }
-        total_quads += EXPAND_SIZE;
+        quadsSize += EXPAND_SIZE;
     }
 }
 
@@ -505,5 +505,5 @@ void add_table_element(Expr* table, unsigned index, Expr* value) {
 }
 
 void add_indexed_element(Expr* table, Expr* index, Expr* value) {
-    emit(tablesetelem, value, index, table, 0);
+    emit(tablesetelem, index, value, table, 0);
 }

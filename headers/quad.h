@@ -59,6 +59,7 @@ typedef struct Quad {
     Expr *arg2;
     unsigned label;
     unsigned line;
+    unsigned taddress;
 } Quad;
 
 typedef struct stmt {
@@ -106,7 +107,7 @@ int isArithExpr(Expr *e);
 extern unsigned int temp_counter;
 
 extern Quad *quads;
-extern unsigned total_quads;
+extern unsigned totalQuads;
 extern unsigned curr_quad;
 
 unsigned newlist(unsigned i);

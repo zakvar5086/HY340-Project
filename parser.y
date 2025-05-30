@@ -12,20 +12,24 @@
 extern int yylex(void);
 extern FILE *yyin;
 
-extern unsigned int offset;
 extern int yylineno;
 void yyerror(const char *msg);
 
 unsigned int currentScope = 0;
 int isFunctionScopes[MAX_SCOPE] = {0};
+int isFunctionScope(unsigned int scope);
 int isLoop = 0;
+
+static void *offsetStack;
+static int currentOffset = 0;
+void initOffsetStack();
+
 static int anon_func = 0;
 SymTable* symTable;
 
-int isFunctionScope(unsigned int scope) {
-    if(scope < MAX_SCOPE) return isFunctionScopes[scope];
-    return 0;
-}
+static SymTableEntry *currFunc = NULL;
+static unsigned functionBlockScope = 0;
+
 
 %}
 
@@ -264,18 +268,16 @@ term:       LPAREN expr RPAREN { $$ = $2; if($2->type == boolexpr_e) $2 = emit_e
                 if($2 && $2->sym && ($2->sym->type == USERFUNC || $2->sym->type == LIBFUNC))
                     fprintf(stderr, "\033[1;31mError:\033[0m Illegal action '++' to function (line %d)\n", yylineno);
 
-                $$ = newExpr(arithexpr_e);
-                $$->sym = newtemp();
-
                 if($2->type == tableitem_e) {
                     Expr *tmp = emit_iftableitem($2);
 
                     emit(add, tmp, newExpr_constnum(1), tmp, 0);
-                    emit(assign, tmp, NULL, $$, 0);
                     emit(tablesetelem, $2->index, tmp, $2->table, 0);
                     $$ = tmp;
                 } else {
                     emit(add, $2, newExpr_constnum(1), $2, 0);
+                    $$ = newExpr(arithexpr_e);
+                    $$->sym = newtemp();
                     emit(assign, $2, NULL, $$, 0);
                 }
             }
@@ -302,18 +304,16 @@ term:       LPAREN expr RPAREN { $$ = $2; if($2->type == boolexpr_e) $2 = emit_e
                 if($2 && $2->sym && ($2->sym->type == USERFUNC || $2->sym->type == LIBFUNC))
                     fprintf(stderr, "\033[1;31mError:\033[0m Illegal action '--' to function (line %d)\n", yylineno);
 
-                $$ = newExpr(arithexpr_e);
-                $$->sym = newtemp();
-
                 if($2->type == tableitem_e) {
                     Expr *tmp = emit_iftableitem($2);
 
                     emit(sub, tmp, newExpr_constnum(1), tmp, 0);
-                    emit(assign, tmp, NULL, $$, 0);
                     emit(tablesetelem, $2->index, tmp, $2->table, 0);
                     $$ = tmp;
                 } else {
                     emit(sub, $2, newExpr_constnum(1), $2, 0);
+                    $$ = newExpr(arithexpr_e);
+                    $$->sym = newtemp();
                     emit(assign, $2, NULL, $$, 0);
                 }
             }
@@ -414,14 +414,12 @@ lvalue:     IDENTIFIER {
                                     pCurr->type == GLOBAL_VAR)) {
                             $$ = newExpr_id(pCurr);
                         } else {
-                            SymTableEntry *newSym;
-                            if(currentScope == 0) newSym = SymTable_Insert(symTable, $1, currentScope, yylineno, GLOBAL_VAR);
-                            else newSym = SymTable_Insert(symTable, $1, currentScope, yylineno, varType);
-                            
+                            SymTableEntry *newSym = SymTable_Insert(symTable, $1, currentScope, yylineno, varType);
                             if(newSym) {
-                                newSym->offset = offset++;
+                                newSym->offset = currentOffset++;
                                 $$ = newExpr_id(newSym);
-                            } else $$ = NULL;
+                            }
+                            else $$ = NULL;
                         }
                     }
                 }
@@ -442,7 +440,7 @@ lvalue:     IDENTIFIER {
                     } else {
                         SymTableEntry *pNew = SymTable_Insert(symTable, $2, currentScope, yylineno, varType);
                         if(pNew){
-                            pNew->offset = offset++;
+                            pNew->offset = currentOffset++;
                             $$ = newExpr_id(pNew);
                         } else $$ = NULL;
                     }
@@ -623,8 +621,22 @@ indexedelem: LBRACE expr COLON expr RBRACE {
             }
             ;
 
-block:      LBRACE { ++currentScope; } stmt_list RBRACE { $$ = $3; SymTable_Hide(symTable, currentScope); --currentScope; }
-            ;
+block:      LBRACE {
+                ++currentScope;
+                if(currFunc && functionBlockScope == 0) functionBlockScope = currentScope;
+                int *saved = malloc(sizeof *saved);
+                *saved = currentOffset;
+                pushStack(offsetStack, saved);
+                currentOffset = 0;
+            } stmt_list RBRACE {
+                if(currentScope == functionBlockScope) currFunc->localCount = currentOffset;
+                int *rest = popStack(offsetStack);
+                currentOffset = *rest;
+                free(rest);
+                $$ = $3;
+                SymTable_Hide(symTable, currentScope);
+                --currentScope;
+            }
 
 funcprefix: FUNCTION IDENTIFIER {
                 SymTableEntry *libFunc = SymTable_Lookup(symTable, $2, 0);
@@ -639,6 +651,8 @@ funcprefix: FUNCTION IDENTIFIER {
                         $$ = NULL;
                     } else {
                         $$ = SymTable_Insert(symTable, $2, currentScope, yylineno, USERFUNC);
+                        currFunc = $$;
+                        $$->taddress = nextQuadLabel();
 
                         Expr *funcExpr = newExpr(programfunc_e);
                         funcExpr->sym = $$;
@@ -652,6 +666,8 @@ funcprefix: FUNCTION IDENTIFIER {
                 sprintf(name, "$f%d", anon_func++);
 
                 $$ = SymTable_Insert(symTable, name, currentScope, yylineno, USERFUNC);
+                currFunc = $$;
+                $$->taddress = nextQuadLabel();
 
                 if(!$$) fprintf(stderr, "\033[1;31mError:\033[0m Failed to create anonymous function '%s' (line %d)\n", name, yylineno);
                 else {
@@ -663,19 +679,34 @@ funcprefix: FUNCTION IDENTIFIER {
                 free(name);
             }
             ;
- 
-funcdef:    funcprefix M LPAREN {
+
+funcargs:   LPAREN { 
                 ++currentScope;
                 isFunctionScopes[currentScope] = 1;
-            } idlist RPAREN { --currentScope; } block {
-                patchlist($8->retlist, nextQuadLabel());
+                int *saved = malloc(sizeof *saved);
+                *saved = currentOffset;
+                pushStack(offsetStack, saved);
+                currentOffset = 0;
+            } idlist RPAREN { 
+                --currentScope;
+            }
+            ;
+
+funcdef:    funcprefix M funcargs block {
+                patchlist($4->retlist, nextQuadLabel());
 
                 if($1) {
                     Expr *funcExpr = newExpr(programfunc_e);
                     funcExpr->sym = $1;
                     emit(funcend, NULL, NULL, funcExpr, 0);
                     patchlabel($2 - 2, nextQuadLabel());
+                    
+                    int *rest = popStack(offsetStack);
+                    currentOffset = *rest;
+                    free(rest);
                 }
+                currFunc = NULL;
+                functionBlockScope = 0;
                 $$ = $1;
             }
             ;
@@ -706,15 +737,42 @@ idlist:     {  }
                         }
                     }
                     SymTableEntry *newEntry = SymTable_Insert(symTable, $1, currentScope, yylineno, FORMAL);
-                    if(newEntry) newEntry->offset = offset++;
+                    if(newEntry) newEntry->offset = currentOffset++;
+
                 }
             } idlist_tail
             ;
 
 idlist_tail:    { $$ = NULL; }
                 | COMMA IDENTIFIER idlist_tail {
-                    $$ = newExpr_conststring($2);
-                    $$->next = $3;
+                    SymTableEntry *libFunc = SymTable_Lookup(symTable, $2, 0);
+
+                    if(libFunc && libFunc->type == LIBFUNC) fprintf(stderr, "\033[1;31mError:\033[0m Cannot shadow a library function. '%s' (line %d)\n", $2, yylineno);
+                    else {
+                        int scope;
+                        for(scope = currentScope; scope >= 0; scope--) {
+                            SymTableEntry *pCurr = SymTable_Lookup(symTable, $2, scope);
+
+                            if(pCurr) {
+                                if(scope == currentScope)
+                                    fprintf(stderr, "\033[1;31mError:\033[0m Symbol '%s' declared in scope %u (line %d)\n", $2, currentScope, yylineno);
+                                else if(pCurr->isActive && 
+                                          !(pCurr->type == LIBFUNC || 
+                                            pCurr->type == USERFUNC || 
+                                            pCurr->type == GLOBAL_VAR))
+                                    fprintf(stderr, "\033[1;31mError:\033[0m Symbol '%s' shadows existing symbol in outer scope %u (line %d)\n", $2, scope, yylineno);
+                                else if(scope == 0) {
+                                    if(scope < currentScope) break;
+                                    else  fprintf(stderr, "\033[1;31mError:\033[0m Symbol '%s' declared in scope %u (line %d)\n", $2, scope, yylineno);
+                                }
+                                break;
+                            }
+                        }
+                        SymTableEntry *newEntry = SymTable_Insert(symTable, $2, currentScope, yylineno, FORMAL);
+                        if(newEntry) newEntry->offset = currentOffset++;
+
+                    }
+                    $$ = $3;
                 }
                 ;
 
@@ -857,6 +915,7 @@ int main(int argc, char **argv) {
 
     symTable = SymTable_Initialize();
     initQuads();
+    initOffsetStack();
 
     yyin = input_file;
     if(output_file != stdout) {
@@ -866,7 +925,8 @@ int main(int argc, char **argv) {
 
     yyparse();
     printQuads();
-    
+    //SymTable_Print(symTable);
+
     SymTable_Free(symTable);    
     if(quads) free(quads);
 
@@ -878,4 +938,17 @@ int main(int argc, char **argv) {
 
 void yyerror(const char *msg) {
     fprintf(stderr, "\033[1;31mSyntax Error\033[0m at line %d: %s\n", yylineno, msg);
+}
+
+int isFunctionScope(unsigned int scope) {
+    if(scope < MAX_SCOPE) return isFunctionScopes[scope];
+    return 0;
+}
+
+void initOffsetStack() {
+    offsetStack = newStack();
+    int *initOff = malloc(sizeof *initOff);
+    *initOff = 0;
+    pushStack(offsetStack, initOff);
+    currentOffset = 0;
 }

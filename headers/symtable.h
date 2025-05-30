@@ -15,9 +15,11 @@ typedef enum SymbolType {
 typedef struct SymTableEntry {
 
     char *name;
-    unsigned int scope;
-    unsigned int line;
-    unsigned int offset;
+    unsigned scope;
+    unsigned line;
+    unsigned offset;
+    unsigned localCount;
+    unsigned taddress;
     int isActive;
     SymbolType type;
 
