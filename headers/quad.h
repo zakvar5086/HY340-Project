@@ -107,7 +107,7 @@ int isArithExpr(Expr *e);
 extern unsigned int temp_counter;
 
 extern Quad *quads;
-extern unsigned totalQuads;
+extern unsigned quadsSize;
 extern unsigned curr_quad;
 
 unsigned newlist(unsigned i);

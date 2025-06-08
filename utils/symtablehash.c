@@ -3,6 +3,7 @@
 #include <string.h>
 #include <assert.h>
 #include "../headers/symtable.h"
+#include "../headers/targetcode.h"
 
 #define hash_multi 65599
 

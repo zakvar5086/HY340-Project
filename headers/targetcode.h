@@ -63,6 +63,7 @@ void generate_NEWTABLE (Quad *quad);
 void generate_TABLEGETELM (Quad *quad);
 void generate_TABLESETELEM (Quad *quad); 
 void generate_ASSIGN (Quad *quad);
+void generate_UMINUS (Quad *quad);
 void generate_NOP (Quad *quad);
 void generate_JUMP (Quad *quad); 
 void generate_IF_EQ (Quad *quad); 
@@ -90,6 +91,9 @@ void generate(void);
 unsigned consts_newString(char *s);
 unsigned consts_newNum(double n);
 unsigned libfuncs_newused(char *s);
-unsigned userfuncs_newused(userfunc_t *s);
+unsigned userfuncs_newused(SymTableEntry *s);
+
+void print_instructions();
+void print_constants();
 
 #endif

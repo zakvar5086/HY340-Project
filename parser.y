@@ -6,6 +6,7 @@
 #include "headers/symtable.h"
 #include "headers/quad.h"
 #include "headers/stack.h"
+#include "headers/targetcode.h"
 #include "parser.tab.h"
 
 #define YY_DECL int yylex(void)
@@ -30,7 +31,7 @@ SymTable* symTable;
 static SymTableEntry *currFunc = NULL;
 static unsigned functionBlockScope = 0;
 
-
+void printEverything(int symbols, int quads, int instructions, int constants);
 %}
 
 %union {
@@ -924,8 +925,8 @@ int main(int argc, char **argv) {
     }
 
     yyparse();
-    printQuads();
-    //SymTable_Print(symTable);
+    generate();
+    printEverything(0, 0, 1, 1);
 
     SymTable_Free(symTable);    
     if(quads) free(quads);
@@ -951,4 +952,26 @@ void initOffsetStack() {
     *initOff = 0;
     pushStack(offsetStack, initOff);
     currentOffset = 0;
+}
+
+void printEverything(int symbols, int quads, int instructions, int constants) {
+    int flags[] = {symbols, quads, instructions, constants};
+    const char* headers[] = {
+        "========== SYMBOL TABLE ==========",
+        "========== INTERMEDIATE CODE ==========", 
+        "========== TARGET CODE ==========",
+        "========== CONSTANTS =========="
+    };
+    
+    for(int i = 0; i < 4; i++) {
+        if(flags[i]) {
+            printf("\n%s\n", headers[i]);
+            switch(i) {
+                case 0: SymTable_Print(symTable); break;
+                case 1: printQuads(); break;
+                case 2: print_instructions(); break;
+                case 3: print_constants(); break;
+            }
+        }
+    }
 }

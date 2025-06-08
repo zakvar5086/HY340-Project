@@ -111,7 +111,12 @@ Expr *newExpr_conststring(char *val) {
 }
 
 Expr *newExpr_id(SymTableEntry *sym) {
-    Expr *e = newExpr(var_e);
+    Expr *e;
+    
+    if(sym && sym->type == LIBFUNC) e = newExpr(libraryfunc_e);
+    else if(sym && sym->type == USERFUNC) e = newExpr(programfunc_e);
+    else e = newExpr(var_e);
+    
     e->sym = sym;
     return e;
 }
