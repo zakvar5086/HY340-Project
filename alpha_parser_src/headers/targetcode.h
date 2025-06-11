@@ -6,6 +6,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define AVM_MAGICNUMBER 340200501
+
 typedef enum vmopcode {
     assign_v,       add_v,          sub_v, 
     mul_v,          div_v,          mod_v,
@@ -95,5 +97,6 @@ unsigned userfuncs_newused(SymTableEntry *s);
 
 void print_instructions();
 void print_constants();
+void write_binary_file(FILE *file);
 
 #endif

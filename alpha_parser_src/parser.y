@@ -3,10 +3,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
-#include "headers/symtable.h"
-#include "headers/quad.h"
-#include "headers/stack.h"
-#include "headers/targetcode.h"
+#include "symtable.h"
+#include "quad.h"
+#include "stack.h"
+#include "targetcode.h"
 #include "parser.tab.h"
 
 #define YY_DECL int yylex(void)
@@ -902,16 +902,36 @@ returnstmt: RETURN SEMICOLON {
 
 int main(int argc, char **argv) {
     FILE *input_file = stdin;
-    FILE *output_file = stdout;
+    FILE *output_file = NULL;
+    char *output_filename = NULL;
+    int debug_mode = 0;
 
-    if(argc > 1 && !(input_file = fopen(argv[1], "r"))) {
+    if(argc < 2) {
+        fprintf(stderr, "Usage: %s <input.alpha> [output.abc] [--debug]\n", argv[0]);
+        return 1;
+    }
+
+    for(int i = 1; i < argc; i++) if(strcmp(argv[i], "--debug") == 0) debug_mode = 1;
+
+    if(!(input_file = fopen(argv[1], "r"))) {
         fprintf(stderr, "Cannot read file: %s\n", argv[1]);
         return 1;
     }
 
-    if(argc > 2 && !(output_file = fopen(argv[2], "w"))) {
-        fprintf(stderr, "Cannot write file: %s\n", argv[2]);
-        return 1;
+    // Determine output filename
+    if(argc > 2 && strcmp(argv[2], "--debug") != 0) output_filename = argv[2];
+    else {
+        char *dot = strrchr(argv[1], '.');
+        if(dot) {
+            int len = dot - argv[1];
+            output_filename = malloc(len + 5);
+            strncpy(output_filename, argv[1], len);
+            strcpy(output_filename + len, ".abc");
+        } else {
+            output_filename = malloc(strlen(argv[1]) + 5);
+            strcpy(output_filename, argv[1]);
+            strcat(output_filename, ".abc");
+        }
     }
 
     symTable = SymTable_Initialize();
@@ -919,20 +939,33 @@ int main(int argc, char **argv) {
     initOffsetStack();
 
     yyin = input_file;
-    if(output_file != stdout) {
-        printf("Output written in file\n");
-        stdout = output_file;
+    
+    if(yyparse() != 0) {
+        fprintf(stderr, "Parsing failed\n");
+        fclose(input_file);
+        return 1;
     }
-
-    yyparse();
+    
     generate();
-    printEverything(0, 0, 1, 1);
+    
+    if(!(output_file = fopen(output_filename, "wb"))) {
+        fprintf(stderr, "Cannot write file: %s\n", output_filename);
+        fclose(input_file);
+        return 1;
+    }
+    
+    write_binary_file(output_file);
+    fclose(output_file);
+    
+    printf("Compilation successful: %s -> %s\n", argv[1], output_filename);
+    
+    if(debug_mode) printEverything(1, 1, 1, 1);
 
     SymTable_Free(symTable);    
     if(quads) free(quads);
-
-    if(input_file != stdin) fclose(input_file);
-    if(output_file != stdout) fclose(output_file);
+    fclose(input_file);
+    
+    if(argc <= 2 || strcmp(argv[2], "--debug") == 0) free(output_filename);
 
     return 0;
 }

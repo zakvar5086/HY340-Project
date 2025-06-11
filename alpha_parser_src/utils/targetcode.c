@@ -190,11 +190,8 @@ unsigned consts_newNum(double n) {
 unsigned libfuncs_newused(char *s) {
     if(!s) return 0;
     
-    for(unsigned i = 0; i < currLibfunct; i++) {
-        if(libFuncs[i] && strcmp(libFuncs[i], s) == 0) {
-            return i;
-        }
-    }
+    for(unsigned i = 0; i < currLibfunct; i++)
+        if(libFuncs[i] && strcmp(libFuncs[i], s) == 0) return i;
     
     if(currLibfunct == totalNameLibfuncs) expandLibfunc();
     assert(currLibfunct < totalNameLibfuncs);
@@ -493,7 +490,7 @@ void generate_RETURN(Quad *quad) {
 }
 
 void generate_FUNCEND(Quad *quad) {
-    SymTableEntry *func = popStack(funcStack);
+    popStack(funcStack);
 
     quad->taddress = nextinstructionlabel();
     instruction *instr= mallocInstr();
@@ -577,4 +574,76 @@ void print_constants() {
                i, userFuncs[i].id, userFuncs[i].address, userFuncs[i].localSize);
     }
     printf("===============================\n");
+}
+
+void write_binary_file(FILE *file) {
+    printf("Writing binary file...\n");
+    
+    // Write magic number
+    unsigned magic = AVM_MAGICNUMBER;
+    printf("Writing magic number: %u\n", magic);
+    fwrite(&magic, sizeof(unsigned), 1, file);
+    
+    // Write string constants
+    printf("Writing %u string constants\n", currStringConst);
+    fwrite(&currStringConst, sizeof(unsigned), 1, file);
+    for(unsigned i = 0; i < currStringConst; i++) {
+        unsigned len = strlen(stringConsts[i]);
+        printf("  String %u: \"%s\" (length %u)\n", i, stringConsts[i], len);
+        fwrite(&len, sizeof(unsigned), 1, file);
+        fwrite(stringConsts[i], sizeof(char), len, file);
+    }
+    
+    // Write numeric constants
+    printf("Writing %u numeric constants\n", currNumConst);
+    fwrite(&currNumConst, sizeof(unsigned), 1, file);
+    if(currNumConst > 0) {
+        for(unsigned i = 0; i < currNumConst; i++) {
+            printf("  Number %u: %g\n", i, numConsts[i]);
+        }
+        fwrite(numConsts, sizeof(double), currNumConst, file);
+    }
+    
+    // Write library functions
+    printf("Writing %u library functions\n", currLibfunct);
+    fwrite(&currLibfunct, sizeof(unsigned), 1, file);
+    for(unsigned i = 0; i < currLibfunct; i++) {
+        unsigned len = strlen(libFuncs[i]);
+        printf("  LibFunc %u: \"%s\" (length %u)\n", i, libFuncs[i], len);
+        fwrite(&len, sizeof(unsigned), 1, file);
+        fwrite(libFuncs[i], sizeof(char), len, file);
+    }
+    
+    // Write user functions
+    printf("Writing %u user functions\n", currUserfunct);
+    fwrite(&currUserfunct, sizeof(unsigned), 1, file);
+    for(unsigned i = 0; i < currUserfunct; i++) {
+        printf("  UserFunc %u: %s (addr: %u, locals: %u)\n", 
+               i, userFuncs[i].id, userFuncs[i].address, userFuncs[i].localSize);
+        fwrite(&userFuncs[i].address, sizeof(unsigned), 1, file);
+        fwrite(&userFuncs[i].localSize, sizeof(unsigned), 1, file);
+        fwrite(&userFuncs[i].saved_index, sizeof(unsigned), 1, file);
+        
+        unsigned len = strlen(userFuncs[i].id);
+        fwrite(&len, sizeof(unsigned), 1, file);
+        fwrite(userFuncs[i].id, sizeof(char), len, file);
+    }
+    
+    // Write instructions
+    printf("Writing %u instructions (starting from index 1)\n", currInstructions - 1);
+    unsigned instrCount = currInstructions - 1; // Don't include instruction 0
+    fwrite(&instrCount, sizeof(unsigned), 1, file);
+    
+    for(unsigned i = 1; i < currInstructions; i++) {
+        instruction *instr = &instructions[i];
+        printf("  Instr %u: opcode=%d, line=%u\n", i-1, instr->opcode, instr->srcLine);
+        
+        fwrite(&instr->opcode, sizeof(vmopcode), 1, file);
+        fwrite(&instr->srcLine, sizeof(unsigned), 1, file);
+        fwrite(instr->result, sizeof(vmarg), 1, file);
+        fwrite(instr->arg1, sizeof(vmarg), 1, file);
+        fwrite(instr->arg2, sizeof(vmarg), 1, file);
+    }
+    
+    printf("Binary file written successfully\n");
 }

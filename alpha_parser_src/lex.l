@@ -2,9 +2,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "headers/symtable.h"
-#include "headers/quad.h"
-#include "parser.tab.h"
+#include "symtable.h"
+#include "quad.h"
+#include "../parser.tab.h"
 
 #define YY_DECL int yylex(void)
 
@@ -17,7 +17,6 @@ comment_info_t current_comment_info;
 
 int comment_depth = 0;
 int nested_comment = 0;
-static int token_counter = 1;
 
 char *string_buf = NULL;
 int buf_size = 0;

@@ -26,3 +26,4 @@ alpha_parser
 remake.sh
 runTests.sh
 parser.output
+*.o
