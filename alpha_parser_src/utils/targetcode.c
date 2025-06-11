@@ -473,20 +473,19 @@ void generate_FUNCSTART(Quad *quad) {
 
 void generate_RETURN(Quad *quad) {
     quad->taddress = nextinstructionlabel();
-    instruction *assignInstr= mallocInstr();
+    instruction *assignInstr = mallocInstr();
     assignInstr->opcode = assign_v;
     assignInstr->srcLine = quad->line;
     make_retvalOperand(assignInstr->result);
-    make_operand(quad->arg1, assignInstr->arg1);
+    
+    if(quad->arg1) make_operand(quad->arg1, assignInstr->arg1);
+    else {
+        assignInstr->arg1->type = nil_a;
+        assignInstr->arg1->val = 0;
+    }
     
     emit_tcode(assignInstr);
     freeInstr(assignInstr);
-
-    instruction *jumpInstr= mallocInstr();
-    jumpInstr->opcode = jump_v;
-    jumpInstr->result->type = label_a;
-    emit_tcode(jumpInstr);
-    freeInstr(jumpInstr);
 }
 
 void generate_FUNCEND(Quad *quad) {
@@ -576,50 +575,35 @@ void print_constants() {
     printf("===============================\n");
 }
 
-void write_binary_file(FILE *file) {
-    printf("Writing binary file...\n");
-    
-    // Write magic number
+void write_binary_file(FILE *file) {    
     unsigned magic = AVM_MAGICNUMBER;
-    printf("Writing magic number: %u\n", magic);
     fwrite(&magic, sizeof(unsigned), 1, file);
     
     // Write string constants
-    printf("Writing %u string constants\n", currStringConst);
     fwrite(&currStringConst, sizeof(unsigned), 1, file);
     for(unsigned i = 0; i < currStringConst; i++) {
         unsigned len = strlen(stringConsts[i]);
-        printf("  String %u: \"%s\" (length %u)\n", i, stringConsts[i], len);
         fwrite(&len, sizeof(unsigned), 1, file);
         fwrite(stringConsts[i], sizeof(char), len, file);
     }
     
     // Write numeric constants
-    printf("Writing %u numeric constants\n", currNumConst);
     fwrite(&currNumConst, sizeof(unsigned), 1, file);
     if(currNumConst > 0) {
-        for(unsigned i = 0; i < currNumConst; i++) {
-            printf("  Number %u: %g\n", i, numConsts[i]);
-        }
         fwrite(numConsts, sizeof(double), currNumConst, file);
     }
     
     // Write library functions
-    printf("Writing %u library functions\n", currLibfunct);
     fwrite(&currLibfunct, sizeof(unsigned), 1, file);
     for(unsigned i = 0; i < currLibfunct; i++) {
         unsigned len = strlen(libFuncs[i]);
-        printf("  LibFunc %u: \"%s\" (length %u)\n", i, libFuncs[i], len);
         fwrite(&len, sizeof(unsigned), 1, file);
         fwrite(libFuncs[i], sizeof(char), len, file);
     }
     
     // Write user functions
-    printf("Writing %u user functions\n", currUserfunct);
     fwrite(&currUserfunct, sizeof(unsigned), 1, file);
     for(unsigned i = 0; i < currUserfunct; i++) {
-        printf("  UserFunc %u: %s (addr: %u, locals: %u)\n", 
-               i, userFuncs[i].id, userFuncs[i].address, userFuncs[i].localSize);
         fwrite(&userFuncs[i].address, sizeof(unsigned), 1, file);
         fwrite(&userFuncs[i].localSize, sizeof(unsigned), 1, file);
         fwrite(&userFuncs[i].saved_index, sizeof(unsigned), 1, file);
@@ -630,20 +614,15 @@ void write_binary_file(FILE *file) {
     }
     
     // Write instructions
-    printf("Writing %u instructions (starting from index 1)\n", currInstructions - 1);
-    unsigned instrCount = currInstructions - 1; // Don't include instruction 0
+    unsigned instrCount = currInstructions - 1;
     fwrite(&instrCount, sizeof(unsigned), 1, file);
     
     for(unsigned i = 1; i < currInstructions; i++) {
-        instruction *instr = &instructions[i];
-        printf("  Instr %u: opcode=%d, line=%u\n", i-1, instr->opcode, instr->srcLine);
-        
+        instruction *instr = &instructions[i];        
         fwrite(&instr->opcode, sizeof(vmopcode), 1, file);
         fwrite(&instr->srcLine, sizeof(unsigned), 1, file);
         fwrite(instr->result, sizeof(vmarg), 1, file);
         fwrite(instr->arg1, sizeof(vmarg), 1, file);
         fwrite(instr->arg2, sizeof(vmarg), 1, file);
-    }
-    
-    printf("Binary file written successfully\n");
+    }    
 }

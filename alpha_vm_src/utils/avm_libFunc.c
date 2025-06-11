@@ -12,6 +12,8 @@ typedef struct library_entry {
 } library_entry;
 
 static library_entry *library_head = NULL;
+static unsigned lib_arg_start = 0;
+static unsigned lib_arg_count = 0;
 
 /* Register a library function */
 void avm_registerlibfunc(char *id, library_func_t addr) {
@@ -44,9 +46,24 @@ void avm_calllibfunc(char *funcName) {
         avm_error("unsupported lib func '%s' called!", funcName);
         vm.executionFinished = 1;
     } else {
+        lib_arg_start = vm.top + 1;
+        lib_arg_count = vm.topsp - vm.top;
+        
+        // Filter out undefined/environment cells from the count
+        unsigned actual_count = 0;
+        for(unsigned i = 0; i < lib_arg_count; i++) {
+            avm_memcell *cell = &vm.stack[lib_arg_start + i];
+            if(cell->type != undef_m) actual_count++;
+            else break;
+        }
+        lib_arg_count = actual_count;
+
         vm.topsp = vm.top;
         (*f)();
-        if(!vm.executionFinished) vm.executionFinished = 0;
+        
+        if(!vm.executionFinished) {
+            vm.executionFinished = 0;
+        }
     }
 }
 
@@ -65,13 +82,24 @@ void avm_initlibraryfuncs(void) {
     avm_registerlibfunc("sin", libfunc_sin);
 }
 
-unsigned avm_totalactuals(void) {
-    return vm.stack[vm.topsp + AVM_NUMACTUALS_OFFSET].data.numVal;
-}
+unsigned avm_totalactuals(void) { return lib_arg_count; }
 
-avm_memcell *avm_getactual(unsigned i) {
-    assert(i < avm_totalactuals());
-    return &vm.stack[vm.topsp + AVM_STACKENV_SIZE + 1 + i];
+avm_memcell *avm_getactual(unsigned i) {    
+    if(i >= lib_arg_count) {
+        avm_error("avm_getactual: argument index %u out of range (total: %u)!", i, lib_arg_count);
+        return NULL;
+    }
+    
+    unsigned addr = lib_arg_start + i;
+    
+    if(addr >= AVM_STACKSIZE) {
+        avm_error("avm_getactual: address %u out of bounds", addr);
+        return NULL;
+    }
+    
+    avm_memcell *cell = &vm.stack[addr];
+    
+    return cell;
 }
 
 
@@ -80,7 +108,8 @@ void libfunc_print(void) {
     unsigned i;
     
     for(i = 0; i < n; ++i) {
-        char *s = avm_tostring(avm_getactual(i));
+        avm_memcell *arg = avm_getactual(i);
+        char *s = avm_tostring(arg);
         puts(s);
         free(s);
     }

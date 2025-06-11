@@ -236,15 +236,11 @@ void avm_load_constants(FILE *file) {
 }
 
 /* With debug */
-void avm_load_code(FILE *file) {
-    printf("Loading instruction code...\n");
-    
+void avm_load_code(FILE *file) {    
     if (fread(&vm.codeSize, sizeof(unsigned), 1, file) != 1) {
         fprintf(stderr, "Error: Failed to read code size\n");
         exit(1);
     }
-    
-    printf("Code size: %u instructions\n", vm.codeSize);
     
     if (vm.codeSize > 0) {
         vm.code = (instruction*)malloc((vm.codeSize + 1) * sizeof(instruction));
@@ -258,9 +254,7 @@ void avm_load_code(FILE *file) {
                 fprintf(stderr, "Error: Failed to read instruction header for instruction %u\n", i);
                 exit(1);
             }
-            
-            printf("Instruction %u: opcode=%d, line=%u\n", i+1, instr->opcode, instr->srcLine);
-            
+                        
             instr->result = (vmarg*)malloc(sizeof(vmarg));
             instr->arg1 = (vmarg*)malloc(sizeof(vmarg));
             instr->arg2 = (vmarg*)malloc(sizeof(vmarg));
@@ -272,36 +266,54 @@ void avm_load_code(FILE *file) {
                 exit(1);
             }
         }
-        
-        vm.codeSize = vm.codeSize + 1;
     }
-    
-    printf("Successfully loaded %u instructions\n", vm.codeSize);
 }
 
 void execute_cycle(void) {
     if(vm.executionFinished) return;
-    else if(vm.executionFinished) return;
-    else {
-        assert(vm.pc < vm.codeSize);
-        instruction *instr = vm.code + vm.pc;
-        assert(instr->opcode >= 0 && instr->opcode <= AVM_MAX_INSTRUCTIONS);
-        
-        if(instr->srcLine) vm.currLine = instr->srcLine;
-        
-        unsigned oldPC = vm.pc;
-        (*executeFuncs[instr->opcode])(instr);
-        if(vm.pc == oldPC) ++vm.pc;
+    
+    if(vm.pc < 1 || vm.pc > vm.codeSize) {
+        fprintf(stderr, "Error: PC %u out of bounds (1-%u)\n", vm.pc, vm.codeSize);
+        vm.executionFinished = 1;
+        return;
     }
+    
+    instruction *instr = vm.code + vm.pc;
+    
+    if(instr->opcode < 0 || instr->opcode > AVM_MAX_INSTRUCTIONS) {
+        fprintf(stderr, "Error: Invalid opcode %d at instruction %u\n", instr->opcode, vm.pc);
+        vm.executionFinished = 1;
+        return;
+    }
+    
+    if(instr->srcLine) vm.currLine = instr->srcLine;
+    
+    unsigned oldPC = vm.pc;
+    (*executeFuncs[instr->opcode])(instr);
+        
+    if(vm.pc == oldPC) ++vm.pc;
 }
 
 avm_memcell *avm_translate_operand(vmarg *arg, avm_memcell *reg) {
     switch(arg->type) {
-        case global_a:  return &vm.stack[AVM_STACKSIZE - 1 - arg->val];
-        case local_a:   return &vm.stack[vm.topsp - arg->val];
-        case formal_a:  return &vm.stack[vm.topsp + AVM_STACKENV_SIZE + 1 + arg->val];
-        case retval_a:  return &vm.retval;
-        
+        case global_a: {
+            unsigned addr = AVM_STACKSIZE - 1 - arg->val;
+            return &vm.stack[addr];
+        }
+        case local_a: {
+            unsigned addr = vm.topsp - arg->val;
+            if(addr >= AVM_STACKSIZE) {
+                avm_error("local_a address out of bounds");
+                return NULL;
+            }
+            return &vm.stack[addr];
+        }
+        case formal_a: {
+            unsigned addr = vm.topsp + AVM_STACKENV_SIZE + 1 + arg->val;
+            return &vm.stack[addr];
+        }
+        case retval_a:
+            return &vm.retval;
         case number_a: {
             assert(arg->val < vm.totalNumbers);
             reg->type = number_m;
@@ -326,7 +338,7 @@ avm_memcell *avm_translate_operand(vmarg *arg, avm_memcell *reg) {
         case userfunc_a: {
             assert(arg->val < vm.totalUserfuncs);
             reg->type = userfunc_m;
-            reg->data.funcVal = vm.userfuncs[arg->val].address;
+            reg->data.funcVal = arg->val;
             return reg;
         }
         case libfunc_a: {
@@ -335,8 +347,10 @@ avm_memcell *avm_translate_operand(vmarg *arg, avm_memcell *reg) {
             reg->data.libfuncVal = vm.libfuncs[arg->val];
             return reg;
         }
-        
-        default: assert(0);
+        default: 
+            printf("ERROR: Unknown arg type %d\n", arg->type);
+            avm_error("Unknown argument type %d", arg->type);
+            assert(0);
     }
 }
 

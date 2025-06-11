@@ -90,9 +90,24 @@ void execute_arithmetic(instruction *instr) {
 void execute_assign(instruction *instr) {
     avm_memcell *lv = avm_translate_operand(instr->result, (avm_memcell*) 0);
     avm_memcell *rv = avm_translate_operand(instr->arg1, &vm.ax);
+        
+    if(!lv) {
+        avm_error("Invalid left-value in assignment");
+        return;
+    }
     
-    assert(lv && (&vm.stack[vm.top] >= lv && lv > &vm.stack[vm.top] || lv == &vm.retval));
-    assert(rv);
+    if(!rv) {
+        avm_error("Invalid right-value in assignment");
+        return;
+    }
+    
+    // Check if lv is in valid range
+    if(lv != &vm.retval) {
+        if(lv < &vm.stack[0] || lv >= &vm.stack[AVM_STACKSIZE]) {
+            avm_error("Assignment target outside stack bounds");
+            return;
+        }
+    }
     
     avm_assign(lv, rv);
 }
@@ -238,7 +253,15 @@ void execute_call(instruction *instr) {
     switch(func->type) {
         case userfunc_m: {
             avm_callsaveenvironment();
-            vm.pc = func->data.funcVal;
+            
+            // Look up the instruction address from the function index
+            if(func->data.funcVal < vm.totalUserfuncs) vm.pc = vm.userfuncs[func->data.funcVal].address;
+            else {
+                avm_error("Invalid user function index in call");
+                vm.executionFinished = 1;
+                return;
+            }
+            
             assert(vm.pc < vm.codeSize);
             assert(vm.code[vm.pc].opcode == funcenter_v);
             break;
@@ -260,25 +283,38 @@ void execute_pusharg(instruction *instr) {
     assert(arg);
     
     avm_assign(&vm.stack[vm.top], arg);
-    avm_dec_top();
+    avm_dec_top();    
 }
 
 void execute_funcenter(instruction *instr) {
     avm_memcell *func = avm_translate_operand(instr->result, &vm.ax);
     assert(func);
-    assert(vm.pc == func->data.funcVal);
     
     /* Callee actions here. */
-    userfunc_t *funcInfo = &vm.userfuncs[func->data.funcVal];
-    vm.topsp = vm.top;
-    vm.top = vm.top - funcInfo->localSize;
+    if(func->data.funcVal < vm.totalUserfuncs) {
+        userfunc_t *funcInfo = &vm.userfuncs[func->data.funcVal];
+        
+        // Verify we're at the correct instruction address
+        if(vm.pc != funcInfo->address) avm_error("funcenter: PC mismatch for user function %u", func->data.funcVal);
+        
+        vm.topsp = vm.top;
+        vm.top = vm.top - funcInfo->localSize;
+        
+    } else vm.executionFinished = 1;
 }
 
 void execute_funcexit(instruction *instr) {
     unsigned oldTop = vm.top;
     vm.top = vm.stack[vm.topsp + AVM_SAVEDTOP_OFFSET].data.numVal;
-    vm.pc = vm.stack[vm.topsp + AVM_SAVEDPC_OFFSET].data.numVal;
+    unsigned saved_pc = (unsigned)vm.stack[vm.topsp + AVM_SAVEDPC_OFFSET].data.numVal;
     vm.topsp = vm.stack[vm.topsp + AVM_SAVEDTOPSP_OFFSET].data.numVal;
+    
+    if(saved_pc == 0) {
+        vm.executionFinished = 1;
+        return;
+    }
+    
+    vm.pc = saved_pc;
     
     while(++oldTop <= vm.top) avm_memcellclear(&vm.stack[oldTop]);
 }

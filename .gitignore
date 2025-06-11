@@ -22,7 +22,6 @@ test.c
 parser.tab.c
 parser.tab.h
 test.alpha
-alpha_parser
 remake.sh
 runTests.sh
 parser.output
