@@ -292,8 +292,14 @@ void execute_funcenter(instruction *instr) {
     avm_memcell *func = avm_translate_operand(instr->result, &vm.ax);
     assert(func);
     
+    printf("DEBUG: execute_funcenter - func type: %d, funcVal: %u\n", func->type, func->data.funcVal);
+    printf("DEBUG: execute_funcenter - current top: %u, topsp: %u, PC: %u\n", vm.top, vm.topsp, vm.pc);
+    
     if(func->data.funcVal < vm.totalUserfuncs) {
         userfunc_t *funcInfo = &vm.userfuncs[func->data.funcVal];
+        
+        printf("DEBUG: execute_funcenter - funcInfo: addr=%u, localSize=%u, id=%s\n", 
+               funcInfo->address, funcInfo->localSize, funcInfo->id);
         
         if(vm.pc != funcInfo->address) {
             avm_error("funcenter: PC mismatch");
@@ -302,9 +308,12 @@ void execute_funcenter(instruction *instr) {
         }
         
         avm_push_env_base(vm.top);
+        printf("DEBUG: execute_funcenter - pushed env_base: %u\n", vm.top);
         
         vm.topsp = vm.top;
-        vm.top = vm.top - funcInfo->localSize;        
+        vm.top = vm.top - funcInfo->localSize;
+        
+        printf("DEBUG: execute_funcenter - new topsp: %u, new top: %u\n", vm.topsp, vm.top);
     } else {
         avm_error("funcenter: Invalid function index");
         vm.executionFinished = 1;
@@ -312,28 +321,38 @@ void execute_funcenter(instruction *instr) {
 }
 
 void execute_funcexit(instruction *instr) {
-    unsigned oldTop = vm.top;    
+    unsigned oldTop = vm.top;
+    printf("DEBUG: execute_funcexit - entry: top=%u, topsp=%u, PC=%u\n", vm.top, vm.topsp, vm.pc);
+    
     unsigned env_base = avm_pop_env_base();
+    printf("DEBUG: execute_funcexit - popped env_base: %u\n", env_base);
     
     avm_memcell *saved_topsp_cell = &vm.stack[env_base + AVM_SAVEDTOPSP_OFFSET];
     avm_memcell *saved_top_cell = &vm.stack[env_base + AVM_SAVEDTOP_OFFSET];
     avm_memcell *saved_pc_cell = &vm.stack[env_base + AVM_SAVEDPC_OFFSET];
+    
+    printf("DEBUG: execute_funcexit - saved_topsp_cell type: %d, saved_top_cell type: %d, saved_pc_cell type: %d\n",
+           saved_topsp_cell->type, saved_top_cell->type, saved_pc_cell->type);
     
     if(saved_topsp_cell->type == number_m && saved_top_cell->type == number_m && saved_pc_cell->type == number_m) {
         unsigned new_topsp = (unsigned)saved_topsp_cell->data.numVal;
         unsigned new_top = (unsigned)saved_top_cell->data.numVal;
         unsigned saved_pc = (unsigned)saved_pc_cell->data.numVal;
         
+        printf("DEBUG: execute_funcexit - restoring: topsp=%u, top=%u, PC=%u\n", new_topsp, new_top, saved_pc);
+        
         vm.topsp = new_topsp;
         vm.top = new_top;
         
         if(saved_pc == 0) {
+            printf("DEBUG: execute_funcexit - saved_pc is 0, finishing execution\n");
             vm.executionFinished = 1;
             return;
         }
         vm.pc = saved_pc;
         
         while(++oldTop <= vm.top) avm_memcellclear(&vm.stack[oldTop]);
+        printf("DEBUG: execute_funcexit - cleared stack from %u to %u\n", oldTop, vm.top);
     } else {
         avm_error("funcexit: corrupted environment at base %u", env_base);
         vm.executionFinished = 1;

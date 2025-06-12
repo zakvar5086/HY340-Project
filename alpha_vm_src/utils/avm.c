@@ -128,14 +128,32 @@ void avm_push_envvalue(unsigned val) {
 }
 
 void avm_callsaveenvironment(void) {
-    unsigned totalActuals = avm_totalactuals();
+    unsigned totalActuals;
+    if(vm.topsp >= vm.top) {
+        totalActuals = vm.topsp - vm.top;
+    } else {
+        totalActuals = vm.top - vm.topsp;
+    }
+    
+    printf("DEBUG: avm_callsaveenvironment - calculated totalActuals: %u\n", totalActuals);
+    printf("DEBUG: avm_callsaveenvironment - current top: %u, topsp: %u\n", vm.top, vm.topsp);
+    printf("DEBUG: avm_callsaveenvironment - current PC: %u\n", vm.pc);
+    
     avm_push_envvalue(totalActuals);
+    printf("DEBUG: avm_callsaveenvironment - pushed totalActuals, new top: %u\n", vm.top);
 
     assert(vm.code[vm.pc].opcode == call_v);
     
     avm_push_envvalue(vm.pc + 1);
-    avm_push_envvalue(vm.top + totalActuals + 2);  
-    avm_push_envvalue(vm.topsp);    
+    printf("DEBUG: avm_callsaveenvironment - pushed PC+1 (%u), new top: %u\n", vm.pc + 1, vm.top);
+    
+    // FIX: Calculate saved_top correctly 
+    unsigned saved_top = vm.topsp;
+    avm_push_envvalue(saved_top);
+    printf("DEBUG: avm_callsaveenvironment - pushed saved_top (%u), new top: %u\n", saved_top, vm.top);
+    
+    avm_push_envvalue(vm.topsp);
+    printf("DEBUG: avm_callsaveenvironment - pushed saved_topsp (%u), new top: %u\n", vm.topsp, vm.top);
 }
 
 void avm_load_program(FILE *file) {
@@ -284,6 +302,8 @@ void execute_cycle(void) {
     
     instruction *instr = vm.code + vm.pc;
     
+    printf("DEBUG: execute_cycle - PC: %u, opcode: %d, codeSize: %u\n", vm.pc, instr->opcode, vm.codeSize);
+    
     if(instr->opcode < 0 || instr->opcode > AVM_MAX_INSTRUCTIONS) {
         fprintf(stderr, "Error: Invalid opcode %d at instruction %u\n", instr->opcode, vm.pc);
         vm.executionFinished = 1;
@@ -294,8 +314,18 @@ void execute_cycle(void) {
     
     unsigned oldPC = vm.pc;
     (*executeFuncs[instr->opcode])(instr);
-        
-    if(vm.pc == oldPC) ++vm.pc;
+    
+    // Only increment PC if it wasn't changed by the instruction
+    if(vm.pc == oldPC) {
+        ++vm.pc;
+        // Check if we've gone past the end of code
+        if(vm.pc > vm.codeSize) {
+            printf("DEBUG: execute_cycle - PC %u > codeSize %u, finishing execution\n", vm.pc, vm.codeSize);
+            vm.executionFinished = 1;
+        }
+    }
+    
+    printf("DEBUG: execute_cycle - after instruction: PC: %u, finished: %d\n", vm.pc, vm.executionFinished);
 }
 
 avm_memcell *avm_translate_operand(vmarg *arg, avm_memcell *reg) {

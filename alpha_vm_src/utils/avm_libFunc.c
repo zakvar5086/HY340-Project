@@ -40,30 +40,50 @@ library_func_t avm_getlibraryfunc(char *id) {
 
 /* Call library function by name */
 void avm_calllibfunc(char *funcName) {
+    printf("DEBUG: avm_calllibfunc - calling: %s\n", funcName);
+    printf("DEBUG: avm_calllibfunc - current top: %u, topsp: %u\n", vm.top, vm.topsp);
+    
     library_func_t f = avm_getlibraryfunc(funcName);
     
     if(!f) {
         avm_error("unsupported lib func '%s' called!", funcName);
         vm.executionFinished = 1;
     } else {
-        lib_arg_start = vm.top + 1;
-        lib_arg_count = vm.topsp - vm.top;
+        // FIX: For library functions, arguments are between top+1 and topsp
+        if(vm.topsp > vm.top) {
+            lib_arg_start = vm.top + 1;
+            lib_arg_count = vm.topsp - vm.top;
+        } else {
+            lib_arg_start = vm.topsp + 1;  
+            lib_arg_count = vm.top - vm.topsp;
+        }
         
+        printf("DEBUG: avm_calllibfunc - lib_arg_start: %u, lib_arg_count: %u\n", lib_arg_start, lib_arg_count);
+        
+        // Validate the argument count by checking actual stack contents
         unsigned actual_count = 0;
-        for(unsigned i = 0; i < lib_arg_count; i++) {
+        for(unsigned i = 0; i < lib_arg_count && i < 100; i++) { // Safety limit
             unsigned addr = lib_arg_start + i;
             
-            if(addr >= AVM_STACKSIZE) break;
+            if(addr >= AVM_STACKSIZE) {
+                printf("DEBUG: avm_calllibfunc - addr %u out of bounds, stopping at %u args\n", addr, i);
+                break;
+            }
             
             avm_memcell *cell = &vm.stack[addr];
+            printf("DEBUG: avm_calllibfunc - arg[%u] at addr %u, type: %d\n", i, addr, cell->type);
             
             if(cell && cell->type != undef_m) actual_count++;
             else break;
         }
         lib_arg_count = actual_count;
+        printf("DEBUG: avm_calllibfunc - final lib_arg_count: %u\n", lib_arg_count);
 
+        unsigned old_topsp = vm.topsp;
         vm.topsp = vm.top;
+        printf("DEBUG: avm_calllibfunc - set topsp to top: %u (was %u)\n", vm.topsp, old_topsp);
         (*f)();
+        printf("DEBUG: avm_calllibfunc - function %s completed\n", funcName);
     }
 }
 
@@ -82,7 +102,10 @@ void avm_initlibraryfuncs(void) {
     avm_registerlibfunc("sin", libfunc_sin);
 }
 
-unsigned avm_totalactuals(void) { return lib_arg_count; }
+unsigned avm_totalactuals(void) { 
+    printf("DEBUG: avm_totalactuals - lib_arg_count: %u\n", lib_arg_count);
+    return lib_arg_count; 
+}
 
 avm_memcell *avm_getactual(unsigned i) {    
     if(i >= lib_arg_count) {
@@ -336,27 +359,37 @@ void libfunc_objectcopy(void) {
 }
 
 void libfunc_totalarguments(void) {
-    unsigned argcount_addr = AVM_STACKSIZE - 2;
+    printf("DEBUG: libfunc_totalarguments - entry: top=%u, topsp=%u\n", vm.top, vm.topsp);
     
-    if(argcount_addr >= AVM_STACKSIZE) {
+    // We need to look in the current function's environment for the argument count
+    // The environment is structured as: [numactuals][saved_pc][saved_top][saved_topsp]
+    // We're currently in a user function, so we need to look at our environment
+    
+    // Check if we have a valid environment
+    if(vm.topsp + AVM_NUMACTUALS_OFFSET >= AVM_STACKSIZE) {
+        printf("DEBUG: libfunc_totalarguments - environment address out of bounds\n");
         avm_memcellclear(&vm.retval);
         vm.retval.type = number_m;
         vm.retval.data.numVal = 0;
         return;
     }
     
-    avm_memcell *argcount_cell = &vm.stack[argcount_addr];
+    // The number of actuals should be stored in the environment
+    avm_memcell *numactuals_cell = &vm.stack[vm.topsp + AVM_NUMACTUALS_OFFSET];
+    printf("DEBUG: libfunc_totalarguments - numactuals_cell at addr %u, type: %d\n", 
+           vm.topsp + AVM_NUMACTUALS_OFFSET, numactuals_cell->type);
     
-    if(argcount_cell->type == number_m) {
-        double actual_count = argcount_cell->data.numVal - 1.0;
-        if(actual_count < 0) actual_count = 0;
+    if(numactuals_cell->type == number_m) {
+        double arg_count = numactuals_cell->data.numVal;
+        printf("DEBUG: libfunc_totalarguments - found arg_count: %f\n", arg_count);
         
         avm_memcellclear(&vm.retval);
         vm.retval.type = number_m;
-        vm.retval.data.numVal = actual_count;
+        vm.retval.data.numVal = arg_count;
         return;
     }
     
+    printf("DEBUG: libfunc_totalarguments - numactuals_cell not a number, returning 0\n");
     avm_memcellclear(&vm.retval);
     vm.retval.type = number_m;
     vm.retval.data.numVal = 0;
