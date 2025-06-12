@@ -52,7 +52,6 @@ void avm_assign(avm_memcell *lv, avm_memcell *rv) {
     if(lv == rv) return;
     
     if(lv->type == table_m && rv->type == table_m && lv->data.tableVal == rv->data.tableVal) return;
-    
     if(rv->type == undef_m) avm_warning("assigning from 'undef' content!");
     
     avm_memcellclear(lv);
@@ -105,8 +104,6 @@ unsigned char nil_tobool(avm_memcell *m)        { return 0; }
 unsigned char undef_tobool(avm_memcell *m)      { return 0; }
 
 /* Error and warning reporting */
-// ...existing code...
-
 void avm_warning(char *format, ...) {
     va_list args;
     va_start(args, format);

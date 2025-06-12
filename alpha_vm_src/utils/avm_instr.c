@@ -73,7 +73,7 @@ void execute_arithmetic(instruction *instr) {
     avm_memcell *rv1 = avm_translate_operand(instr->arg1, &vm.ax);
     avm_memcell *rv2 = avm_translate_operand(instr->arg2, &vm.bx);
     
-    assert(lv && ((lv >= &vm.stack[0] && lv <= &vm.stack[vm.top]) || lv == &vm.retval));
+    assert(lv && ((&vm.stack[AVM_STACKSIZE - 1] >= lv && lv > &vm.stack[vm.top]) || lv == &vm.retval));
     assert(rv1 && rv2);
 
     if(rv1->type != number_m || rv2->type != number_m) {
@@ -356,7 +356,7 @@ void execute_tablegetelem(instruction *instr) {
     avm_memcell *i = avm_translate_operand(instr->arg2, &vm.ax);
     
     assert(lv && ((lv >= &vm.stack[0] && lv <= &vm.stack[vm.top]) || lv == &vm.retval));
-    assert(t && (t >= &vm.stack[0] && t <= &vm.stack[vm.top]));
+    assert(t && (&vm.stack[AVM_STACKSIZE - 1] >= t && t >= &vm.stack[vm.top]));
     assert(i);
     
     avm_memcellclear(lv);
@@ -381,7 +381,7 @@ void execute_tablesetelem(instruction *instr) {
     avm_memcell *i = avm_translate_operand(instr->arg1, &vm.ax);
     avm_memcell *c = avm_translate_operand(instr->arg2, &vm.bx);
     
-    assert(t && (t >= &vm.stack[0] && t <= &vm.stack[vm.top]));
+    assert(t && (&vm.stack[AVM_STACKSIZE - 1] >= t && t >= &vm.stack[vm.top]));
     assert(i && c);
     
     if(t->type != table_m) avm_error("illegal use of type %s as table!", typeStrings[t->type]);
