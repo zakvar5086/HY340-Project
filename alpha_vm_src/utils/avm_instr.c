@@ -3,6 +3,7 @@
 #include "../headers/avm_tables.h"
 #include "../headers/avm_libFunc.h"
 #include "../headers/avm.h"
+#include "../../alpha_parser_src/headers/stack.h"
 
 execute_func_t executeFuncs[] = {
     execute_assign,
@@ -72,9 +73,9 @@ void execute_arithmetic(instruction *instr) {
     avm_memcell *rv1 = avm_translate_operand(instr->arg1, &vm.ax);
     avm_memcell *rv2 = avm_translate_operand(instr->arg2, &vm.bx);
     
-    assert(lv && (&vm.stack[vm.top] >= lv && lv > &vm.stack[vm.top] || lv == &vm.retval));
+    assert(lv && ((lv >= &vm.stack[0] && lv <= &vm.stack[vm.top]) || lv == &vm.retval));
     assert(rv1 && rv2);
-    
+
     if(rv1->type != number_m || rv2->type != number_m) {
         avm_error("not a number in arithmetic!");
         vm.executionFinished = 1;
@@ -139,7 +140,7 @@ void execute_uminus(instruction *instr) {
     avm_memcell *lv = avm_translate_operand(instr->result, (avm_memcell*) 0);
     avm_memcell *rv = avm_translate_operand(instr->arg1, &vm.ax);
     
-    assert(lv && (&vm.stack[vm.top] >= lv && lv > &vm.stack[vm.top] || lv == &vm.retval));
+    assert(lv && ((lv >= &vm.stack[0] && lv <= &vm.stack[vm.top]) || lv == &vm.retval));
     assert(rv);
     
     if(rv->type != number_m) {
@@ -249,14 +250,15 @@ void execute_jgt(instruction *instr) { execute_jle(instr); }
 void execute_call(instruction *instr) {
     avm_memcell *func = avm_translate_operand(instr->arg1, &vm.ax);
     assert(func);
-    
+        
     switch(func->type) {
         case userfunc_m: {
             avm_callsaveenvironment();
             
             // Look up the instruction address from the function index
-            if(func->data.funcVal < vm.totalUserfuncs) vm.pc = vm.userfuncs[func->data.funcVal].address;
-            else {
+            if(func->data.funcVal < vm.totalUserfuncs) {
+                vm.pc = vm.userfuncs[func->data.funcVal].address;
+            } else {
                 avm_error("Invalid user function index in call");
                 vm.executionFinished = 1;
                 return;
@@ -268,7 +270,7 @@ void execute_call(instruction *instr) {
         }
         case string_m: avm_calllibfunc(func->data.strVal); break;
         case libfunc_m: avm_calllibfunc(func->data.libfuncVal); break;
-        case table_m: avm_calllibfunc("call_functor"); break; /* Functors */
+        case table_m: avm_calllibfunc("call_functor"); break;
         default: {
             char *s = avm_tostring(func);
             avm_error("call: cannot bind '%s' to function!", s);
@@ -290,39 +292,58 @@ void execute_funcenter(instruction *instr) {
     avm_memcell *func = avm_translate_operand(instr->result, &vm.ax);
     assert(func);
     
-    /* Callee actions here. */
     if(func->data.funcVal < vm.totalUserfuncs) {
         userfunc_t *funcInfo = &vm.userfuncs[func->data.funcVal];
         
-        // Verify we're at the correct instruction address
-        if(vm.pc != funcInfo->address) avm_error("funcenter: PC mismatch for user function %u", func->data.funcVal);
+        if(vm.pc != funcInfo->address) {
+            avm_error("funcenter: PC mismatch");
+            vm.executionFinished = 1;
+            return;
+        }
+        
+        avm_push_env_base(vm.top);
         
         vm.topsp = vm.top;
-        vm.top = vm.top - funcInfo->localSize;
-        
-    } else vm.executionFinished = 1;
+        vm.top = vm.top - funcInfo->localSize;        
+    } else {
+        avm_error("funcenter: Invalid function index");
+        vm.executionFinished = 1;
+    }
 }
 
 void execute_funcexit(instruction *instr) {
-    unsigned oldTop = vm.top;
-    vm.top = vm.stack[vm.topsp + AVM_SAVEDTOP_OFFSET].data.numVal;
-    unsigned saved_pc = (unsigned)vm.stack[vm.topsp + AVM_SAVEDPC_OFFSET].data.numVal;
-    vm.topsp = vm.stack[vm.topsp + AVM_SAVEDTOPSP_OFFSET].data.numVal;
+    unsigned oldTop = vm.top;    
+    unsigned env_base = avm_pop_env_base();
     
-    if(saved_pc == 0) {
+    avm_memcell *saved_topsp_cell = &vm.stack[env_base + AVM_SAVEDTOPSP_OFFSET];
+    avm_memcell *saved_top_cell = &vm.stack[env_base + AVM_SAVEDTOP_OFFSET];
+    avm_memcell *saved_pc_cell = &vm.stack[env_base + AVM_SAVEDPC_OFFSET];
+    
+    if(saved_topsp_cell->type == number_m && saved_top_cell->type == number_m && saved_pc_cell->type == number_m) {
+        unsigned new_topsp = (unsigned)saved_topsp_cell->data.numVal;
+        unsigned new_top = (unsigned)saved_top_cell->data.numVal;
+        unsigned saved_pc = (unsigned)saved_pc_cell->data.numVal;
+        
+        vm.topsp = new_topsp;
+        vm.top = new_top;
+        
+        if(saved_pc == 0) {
+            vm.executionFinished = 1;
+            return;
+        }
+        vm.pc = saved_pc;
+        
+        while(++oldTop <= vm.top) avm_memcellclear(&vm.stack[oldTop]);
+    } else {
+        avm_error("funcexit: corrupted environment at base %u", env_base);
         vm.executionFinished = 1;
-        return;
     }
-    
-    vm.pc = saved_pc;
-    
-    while(++oldTop <= vm.top) avm_memcellclear(&vm.stack[oldTop]);
 }
 
 void execute_newtable(instruction *instr) {
     avm_memcell *lv = avm_translate_operand(instr->result, (avm_memcell*) 0);
-    assert(lv && (&vm.stack[vm.top] >= lv && lv > &vm.stack[vm.top] || lv == &vm.retval));
-    
+    assert(lv && ((lv >= &vm.stack[0] && lv <= &vm.stack[vm.top]) || lv == &vm.retval));
+
     avm_memcellclear(lv);
     lv->type = table_m;
     lv->data.tableVal = avm_tablenew();
@@ -334,8 +355,8 @@ void execute_tablegetelem(instruction *instr) {
     avm_memcell *t = avm_translate_operand(instr->arg1, (avm_memcell*) 0);
     avm_memcell *i = avm_translate_operand(instr->arg2, &vm.ax);
     
-    assert(lv && (&vm.stack[vm.top] >= lv && lv > &vm.stack[vm.top] || lv == &vm.retval));
-    assert(t && (&vm.stack[vm.top] >= t && t > &vm.stack[vm.top]));
+    assert(lv && ((lv >= &vm.stack[0] && lv <= &vm.stack[vm.top]) || lv == &vm.retval));
+    assert(t && (t >= &vm.stack[0] && t <= &vm.stack[vm.top]));
     assert(i);
     
     avm_memcellclear(lv);
@@ -360,7 +381,7 @@ void execute_tablesetelem(instruction *instr) {
     avm_memcell *i = avm_translate_operand(instr->arg1, &vm.ax);
     avm_memcell *c = avm_translate_operand(instr->arg2, &vm.bx);
     
-    assert(t && (&vm.stack[vm.top] >= t && t > &vm.stack[vm.top]));
+    assert(t && (t >= &vm.stack[0] && t <= &vm.stack[vm.top]));
     assert(i && c);
     
     if(t->type != table_m) avm_error("illegal use of type %s as table!", typeStrings[t->type]);
@@ -368,3 +389,63 @@ void execute_tablesetelem(instruction *instr) {
 }
 
 void execute_nop(instruction *instr) {  }
+
+/* Stack for saving env base addr */
+void avm_init_env_stack(void) {
+    env_base_stack = newStack();
+    if (!env_base_stack) {
+        fprintf(stderr, "Error: Failed to initialize environment base stack\n");
+        exit(1);
+    }
+}
+
+// Clean up the environment base stack (call this in avm_cleanup)
+void avm_cleanup_env_stack(void) {
+    if (env_base_stack) {
+        // Free any remaining items
+        while (!isEmptyStack(env_base_stack)) {
+            unsigned *base = (unsigned*)popStack(env_base_stack);
+            if (base) free(base);
+        }
+        destroyStack(env_base_stack);
+        env_base_stack = NULL;
+    }
+}
+
+// Push environment base address onto stack
+void avm_push_env_base(unsigned base) {
+    unsigned *base_ptr = malloc(sizeof(unsigned));
+    if (!base_ptr) {
+        avm_error("Failed to allocate memory for environment base");
+        vm.executionFinished = 1;
+        return;
+    }
+    *base_ptr = base;
+    pushStack(env_base_stack, base_ptr);
+}
+
+// Pop environment base address from stack
+unsigned avm_pop_env_base(void) {
+    if (isEmptyStack(env_base_stack)) {
+        avm_error("Environment base stack is empty");
+        vm.executionFinished = 1;
+        return 0;
+    }
+    
+    unsigned *base_ptr = (unsigned*)popStack(env_base_stack);
+    unsigned base = *base_ptr;
+    free(base_ptr);
+    return base;
+}
+
+// Get current environment base without popping
+unsigned avm_peek_env_base(void) {
+    if (isEmptyStack(env_base_stack)) {
+        avm_error("Environment base stack is empty");
+        vm.executionFinished = 1;
+        return 0;
+    }
+    
+    unsigned *base_ptr = (unsigned*)topStack(env_base_stack);
+    return *base_ptr;
+}

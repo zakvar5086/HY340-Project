@@ -71,4 +71,12 @@ unsigned char jgt_impl(double x, double y);
 /* Initialize instruction execution system */
 void avm_initinstructions(void);
 
+/* Stack management of env base */
+static void *env_base_stack = NULL;
+void avm_init_env_stack(void);
+void avm_cleanup_env_stack(void);
+void avm_push_env_base(unsigned base);
+unsigned avm_pop_env_base(void);
+unsigned avm_peek_env_base(void);
+
 #endif

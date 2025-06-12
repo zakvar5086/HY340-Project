@@ -7,6 +7,7 @@ void avm_initialize(void) {
     avm_initgc();
     avm_initinstructions();
     avm_initlibraryfuncs();
+    avm_init_env_stack();
     
     memset(&vm.retval, 0, sizeof(avm_memcell));
     memset(&vm.ax, 0, sizeof(avm_memcell));
@@ -60,6 +61,7 @@ void avm_cleanup(void) {
     avm_memcellclear(&vm.ax);
     avm_memcellclear(&vm.bx);
     avm_memcellclear(&vm.cx);
+    avm_cleanup_env_stack();
     
     if(vm.strings) {
         for(i = 0; i < vm.totalStrings; i++)
@@ -128,10 +130,12 @@ void avm_push_envvalue(unsigned val) {
 void avm_callsaveenvironment(void) {
     unsigned totalActuals = avm_totalactuals();
     avm_push_envvalue(totalActuals);
+
     assert(vm.code[vm.pc].opcode == call_v);
+    
     avm_push_envvalue(vm.pc + 1);
-    avm_push_envvalue(vm.top + totalActuals + 2);
-    avm_push_envvalue(vm.topsp);
+    avm_push_envvalue(vm.top + totalActuals + 2);  
+    avm_push_envvalue(vm.topsp);    
 }
 
 void avm_load_program(FILE *file) {

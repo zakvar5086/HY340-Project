@@ -4,8 +4,7 @@ alpha_parser: alpha_parser_src/utils/symtablehash.o alpha_parser_src/utils/quad.
 	gcc -g -Wall -Ialpha_parser_src/headers -Ialpha_vm_src/headers -o alpha_parser alpha_parser_src/utils/symtablehash.o alpha_parser_src/utils/quad.o alpha_parser_src/utils/stack.o alpha_parser_src/utils/targetcode.o alpha_parser_src/parser.tab.o lex.yy.o -ll
 
 avm: alpha_vm_src/utils/avm.o alpha_vm_src/utils/avm_memcell.o alpha_vm_src/utils/avm_tables.o alpha_vm_src/utils/avm_gc.o alpha_vm_src/utils/avm_instr.o alpha_vm_src/utils/avm_libFunc.o main.o
-	gcc -g -Wall -Ialpha_parser_src/headers -Ialpha_vm_src/headers -o avm alpha_vm_src/utils/avm.o alpha_vm_src/utils/avm_memcell.o alpha_vm_src/utils/avm_tables.o alpha_vm_src/utils/avm_gc.o alpha_vm_src/utils/avm_instr.o alpha_vm_src/utils/avm_libFunc.o main.o -lm
-
+	gcc -g -Wall -Ialpha_parser_src/headers -Ialpha_vm_src/headers -o avm alpha_vm_src/utils/avm.o alpha_vm_src/utils/avm_memcell.o alpha_vm_src/utils/avm_tables.o alpha_vm_src/utils/avm_gc.o alpha_vm_src/utils/avm_instr.o alpha_vm_src/utils/avm_libFunc.o alpha_parser_src/utils/stack.o main.o -lm
 alpha_parser_src/parser.tab.c alpha_parser_src/parser.tab.h: alpha_parser_src/parser.y
 	cd alpha_parser_src && bison -d parser.y
 
