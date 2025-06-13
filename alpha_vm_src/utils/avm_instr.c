@@ -73,7 +73,7 @@ void execute_arithmetic(instruction *instr) {
     avm_memcell *rv1 = avm_translate_operand(instr->arg1, &vm.ax);
     avm_memcell *rv2 = avm_translate_operand(instr->arg2, &vm.bx);
     
-    assert(lv && ((&vm.stack[AVM_STACKSIZE - 1] >= lv && lv > &vm.stack[vm.top]) || lv == &vm.retval));
+    assert(lv && ((&vm.stack[AVM_STACKSIZE] >= lv && lv > &vm.stack[vm.top]) || lv == &vm.retval));
     assert(rv1 && rv2);
 
     if(rv1->type != number_m || rv2->type != number_m) {
@@ -104,7 +104,7 @@ void execute_assign(instruction *instr) {
     
     // Check if lv is in valid range
     if(lv != &vm.retval) {
-        if(lv < &vm.stack[0] || lv >= &vm.stack[AVM_STACKSIZE]) {
+        if(lv < &vm.stack[1] || lv >= &vm.stack[AVM_STACKSIZE]) {
             avm_error("Assignment target outside stack bounds");
             return;
         }
@@ -342,7 +342,7 @@ void execute_funcexit(instruction *instr) {
 
 void execute_newtable(instruction *instr) {
     avm_memcell *lv = avm_translate_operand(instr->result, (avm_memcell*) 0);
-    assert(lv && ((lv >= &vm.stack[0] && lv <= &vm.stack[vm.top]) || lv == &vm.retval));
+    assert(lv && ((lv >= &vm.stack[1] && lv <= &vm.stack[vm.top]) || lv == &vm.retval));
 
     avm_memcellclear(lv);
     lv->type = table_m;
@@ -355,8 +355,8 @@ void execute_tablegetelem(instruction *instr) {
     avm_memcell *t = avm_translate_operand(instr->arg1, (avm_memcell*) 0);
     avm_memcell *i = avm_translate_operand(instr->arg2, &vm.ax);
     
-    assert(lv && ((lv >= &vm.stack[0] && lv <= &vm.stack[vm.top]) || lv == &vm.retval));
-    assert(t && (&vm.stack[AVM_STACKSIZE - 1] >= t && t >= &vm.stack[vm.top]));
+    assert(lv && ((lv >= &vm.stack[1] && lv <= &vm.stack[vm.top]) || lv == &vm.retval));
+    assert(t && (&vm.stack[AVM_STACKSIZE] >= t && t >= &vm.stack[vm.top]));
     assert(i);
     
     avm_memcellclear(lv);
@@ -381,7 +381,7 @@ void execute_tablesetelem(instruction *instr) {
     avm_memcell *i = avm_translate_operand(instr->arg1, &vm.ax);
     avm_memcell *c = avm_translate_operand(instr->arg2, &vm.bx);
     
-    assert(t && (&vm.stack[AVM_STACKSIZE - 1] >= t && t >= &vm.stack[vm.top]));
+    assert(t && (&vm.stack[AVM_STACKSIZE] >= t && t >= &vm.stack[vm.top]));
     assert(i && c);
     
     if(t->type != table_m) avm_error("illegal use of type %s as table!", typeStrings[t->type]);

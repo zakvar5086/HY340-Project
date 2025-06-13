@@ -96,24 +96,26 @@ void avm_cleanup(void) {
 }
 
 void avm_initstack(void) {
-    vm.stack = (avm_memcell*)malloc(AVM_STACKSIZE * sizeof(avm_memcell));
+    vm.stack = (avm_memcell*)malloc((AVM_STACKSIZE + 1) * sizeof(avm_memcell));
     if(!vm.stack) {
         fprintf(stderr, "Error: Failed to allocate VM stack\n");
         exit(1);
     }
     
     unsigned i;
-    for(i = 0; i < AVM_STACKSIZE; i++) {
+    for(i = 1; i < AVM_STACKSIZE; i++) {
         vm.stack[i].type = undef_m;
         memset(&vm.stack[i].data, 0, sizeof(vm.stack[i].data));
     }
+
+    vm.stack[0].type = undef_m;
     
-    vm.top = AVM_STACKSIZE - 1;
-    vm.topsp = 0;
+    vm.top = AVM_STACKSIZE;
+    vm.topsp = 1;
 }
 
 void avm_dec_top(void) {
-    if(!vm.top) {
+    if(vm.top < 1) {
         avm_error("stack overflow");
         vm.executionFinished = 1;
     } else {
@@ -301,19 +303,23 @@ void execute_cycle(void) {
 avm_memcell *avm_translate_operand(vmarg *arg, avm_memcell *reg) {
     switch(arg->type) {
         case global_a: {
-            unsigned addr = AVM_STACKSIZE - 1 - arg->val;
+            unsigned addr = AVM_STACKSIZE - arg->val;
             return &vm.stack[addr];
         }
         case local_a: {
             unsigned addr = vm.topsp - arg->val;
-            if(addr >= AVM_STACKSIZE) {
-                avm_error("local_a address out of bounds");
+            if(addr < 1 || addr > AVM_STACKSIZE) {
+                avm_error("local address %u out of bounds", addr);
                 return NULL;
             }
             return &vm.stack[addr];
         }
         case formal_a: {
             unsigned addr = vm.topsp + AVM_STACKENV_SIZE + 1 + arg->val;
+            if(addr < 1 || addr > AVM_STACKSIZE) {
+                avm_error("formal address %u out of bounds", addr);
+                return NULL;
+            }
             return &vm.stack[addr];
         }
         case retval_a:
@@ -359,6 +365,11 @@ avm_memcell *avm_translate_operand(vmarg *arg, avm_memcell *reg) {
 }
 
 unsigned avm_get_envvalue(unsigned i) {
+    if(i < 1 || i > AVM_STACKSIZE) {
+        avm_error("Environment value index %u out of bounds", i);
+        return 0;
+    }
+    
     assert(vm.stack[i].type == number_m);
     unsigned val = (unsigned) vm.stack[i].data.numVal;
     assert(vm.stack[i].data.numVal == ((double) val));
