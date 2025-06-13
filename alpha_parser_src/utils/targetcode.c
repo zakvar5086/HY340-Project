@@ -7,7 +7,7 @@
 #include "../headers/symtable.h"
 #include "../headers/stack.h"
 
-extern unsigned int globalVarCount;
+extern unsigned int programVarCount;
 
 instruction *instructions = NULL;
 unsigned currInstructions = 0;
@@ -581,8 +581,7 @@ void write_binary_file(FILE *file) {
     unsigned magic = AVM_MAGICNUMBER;
     fwrite(&magic, sizeof(unsigned), 1, file);
     
-    // Write global variable count
-    fwrite(&globalVarCount, sizeof(unsigned), 1, file);
+    fwrite(&programVarCount, sizeof(unsigned), 1, file);
     
     // Write string constants
     fwrite(&currStringConst, sizeof(unsigned), 1, file);

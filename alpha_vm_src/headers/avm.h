@@ -43,7 +43,7 @@ typedef struct {
     unsigned totalActuals;
     
     /* Global variables */
-    unsigned globalVarCount;
+    unsigned programVarCount;
     
     /* Constant pools */
     char **strings;

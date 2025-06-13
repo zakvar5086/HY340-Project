@@ -13,6 +13,22 @@ typedef struct library_entry {
 
 static library_entry *library_head = NULL;
 
+void debug_print_function_env(const char* funcname) {
+    printf("=== %s Environment Debug ===\n", funcname);
+    printf("topsp: %u\n", vm.topsp);
+    printf("Checking address %u (topsp + %d)\n", 
+           vm.topsp + AVM_NUMACTUALS_OFFSET, AVM_NUMACTUALS_OFFSET);
+    
+    if(vm.topsp + AVM_NUMACTUALS_OFFSET <= AVM_STACKSIZE) {
+        avm_memcell *cell = &vm.stack[vm.topsp + AVM_NUMACTUALS_OFFSET];
+        printf("Cell type: %d, value: %.0f\n", cell->type, 
+               cell->type == number_m ? cell->data.numVal : -1);
+    } else {
+        printf("Address out of bounds!\n");
+    }
+    printf("=============================\n");
+}
+
 /* Register a library function */
 void avm_registerlibfunc(char *id, library_func_t addr) {
     library_entry *entry = malloc(sizeof(library_entry));
@@ -94,6 +110,8 @@ avm_memcell *avm_getactual(unsigned i) {
 }
 
 void libfunc_print(void) {
+    debug_print_function_env("print");
+    
     unsigned n = avm_totalactuals();
     for(unsigned i = 0; i < n; ++i) {
         char *s = avm_tostring(avm_getactual(i));

@@ -23,7 +23,7 @@ void avm_initialize(void) {
     vm.executionFinished = 0;
     vm.codeSize = 0;
     vm.code = NULL;
-    vm.globalVarCount = 0;
+    vm.programVarCount = 0;
     
     vm.strings = NULL;
     vm.numbers = NULL;
@@ -112,11 +112,11 @@ void avm_initstack(void) {
         memset(&vm.stack[i].data, 0, sizeof(vm.stack[i].data));
     }
 
-    vm.top = AVM_STACKSIZE - vm.globalVarCount;
-    vm.topsp = vm.top;
+    vm.topsp = AVM_STACKSIZE - vm.programVarCount;
+    vm.top = vm.topsp;
     
-    printf("Stack initialized: topsp=%u, top=%u, globalVarCount=%u\n", 
-           vm.topsp, vm.top, vm.globalVarCount);
+    printf("Stack initialized: topsp=%u, top=%u, programVarCount=%u\n", 
+           vm.topsp, vm.top, vm.programVarCount);
 }
 
 void avm_dec_top(void) {
@@ -151,7 +151,7 @@ void avm_load_program(FILE *file) {
     }
     
     // Read global variable count
-    if(fread(&vm.globalVarCount, sizeof(unsigned), 1, file) != 1) {
+    if(fread(&vm.programVarCount, sizeof(unsigned), 1, file) != 1) {
         fprintf(stderr, "Error: Failed to read global variable count\n");
         exit(1);
     }

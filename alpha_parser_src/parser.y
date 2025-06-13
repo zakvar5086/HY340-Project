@@ -16,7 +16,8 @@ extern FILE *yyin;
 extern int yylineno;
 void yyerror(const char *msg);
 
-unsigned int globalVarCount = 0;
+unsigned int programVarCount = 0;
+void updateProgramVarCount(SymTableEntry *entry);
 
 unsigned int currentScope = 0;
 int isFunctionScopes[MAX_SCOPE] = {0};
@@ -420,12 +421,7 @@ lvalue:     IDENTIFIER {
                             SymTableEntry *newSym = SymTable_Insert(symTable, $1, currentScope, yylineno, varType);
                             if(newSym) {
                                 newSym->offset = currentOffset++;
-                                // Track global variable count
-                                if(currentScope == 0 && newSym->type == GLOBAL_VAR) {
-                                    if(newSym->offset >= globalVarCount) {
-                                        globalVarCount = newSym->offset + 1;
-                                    }
-                                }
+                                updateProgramVarCount(newSym);
                                 $$ = newExpr_id(newSym);
                             }
                             else $$ = NULL;
@@ -450,12 +446,7 @@ lvalue:     IDENTIFIER {
                         SymTableEntry *pNew = SymTable_Insert(symTable, $2, currentScope, yylineno, varType);
                         if(pNew){
                             pNew->offset = currentOffset++;
-                            // Track global variable count
-                            if(currentScope == 0 && pNew->type == GLOBAL_VAR) {
-                                if(pNew->offset >= globalVarCount) {
-                                    globalVarCount = pNew->offset + 1;
-                                }
-                            }
+                            updateProgramVarCount(pNew);
                             $$ = newExpr_id(pNew);
                         } else $$ = NULL;
                     }
@@ -1019,6 +1010,15 @@ void printEverything(int symbols, int quads, int instructions, int constants) {
                 case 2: print_instructions(); break;
                 case 3: print_constants(); break;
             }
+        }
+    }
+}
+
+void updateProgramVarCount(SymTableEntry *entry) {
+    if (entry && (entry->type == GLOBAL_VAR || 
+                  (entry->type == LOCAL_VAR && !isFunctionScope(entry->scope)))) {
+        if (entry->offset >= programVarCount) {
+            programVarCount = entry->offset + 1;
         }
     }
 }
