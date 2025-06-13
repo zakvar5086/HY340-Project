@@ -1,4 +1,3 @@
-
 #ifndef AVM_INSTRUCTION_H
 #define AVM_INSTRUCTION_H
 

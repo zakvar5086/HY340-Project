@@ -39,6 +39,9 @@ typedef struct {
     unsigned char executionFinished;
     unsigned currLine;
     
+    /* Function call tracking */
+    unsigned totalActuals;
+    
     /* Constant pools */
     char **strings;
     double *numbers;
@@ -78,6 +81,11 @@ avm_memcell *avm_translate_operand(vmarg *arg, avm_memcell *reg);
 
 /* Binary file format verification */
 unsigned avm_get_envvalue(unsigned i);
+
+/* Function management */
+userfunc_t *avm_getfuncinfo(unsigned address);
+void avm_call_functor(avm_table *functor);
+
 #define AVM_MAGICNUMBER 340200501
 
 #endif

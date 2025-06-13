@@ -369,9 +369,46 @@ unsigned avm_get_envvalue(unsigned i) {
         avm_error("Environment value index %u out of bounds", i);
         return 0;
     }
-    
+    printf("type: %d\n", vm.stack[i].type);
     assert(vm.stack[i].type == number_m);
     unsigned val = (unsigned) vm.stack[i].data.numVal;
     assert(vm.stack[i].data.numVal == ((double) val));
     return val;
+}
+
+userfunc_t *avm_getfuncinfo(unsigned address) {
+    for(unsigned i = 0; i < vm.totalUserfuncs; i++) {
+        if(vm.userfuncs[i].address == address) {
+            return &vm.userfuncs[i];
+        }
+    }
+    return NULL;
+}
+
+void avm_push_table_arg(avm_table *t) {
+    vm.stack[vm.top].type = table_m;
+    avm_tableincrefcounter(vm.stack[vm.top].data.tableVal = t);
+    ++vm.totalActuals;
+    avm_dec_top();
+}
+
+void avm_call_functor(avm_table *t) {
+    vm.cx.type = string_m;
+    vm.cx.data.strVal = "()";
+    avm_memcell *f = avm_tablegetelem(t, &vm.cx);
+    
+    if(!f) {
+        avm_error("in calling table: no '()' element found!");
+    } else {
+        if(f->type == table_m) {
+            avm_call_functor(f->data.tableVal);
+        } else if(f->type == userfunc_m) {
+            avm_push_table_arg(t);
+            avm_callsaveenvironment();
+            vm.pc = f->data.funcVal;
+            assert(vm.pc < vm.codeSize + 1 && vm.code[vm.pc].opcode == funcenter_v);
+        } else {
+            avm_error("in calling table: illegal '()' element value!");
+        }
+    }
 }

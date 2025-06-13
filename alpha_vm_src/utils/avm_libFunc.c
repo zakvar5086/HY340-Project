@@ -12,8 +12,6 @@ typedef struct library_entry {
 } library_entry;
 
 static library_entry *library_head = NULL;
-static unsigned lib_arg_start = 0;
-static unsigned lib_arg_count = 0;
 
 /* Register a library function */
 void avm_registerlibfunc(char *id, library_func_t addr) {
@@ -46,24 +44,11 @@ void avm_calllibfunc(char *funcName) {
         avm_error("unsupported lib func '%s' called!", funcName);
         vm.executionFinished = 1;
     } else {
-        lib_arg_start = vm.top + 1;
-        lib_arg_count = vm.topsp - vm.top;
-        
-        unsigned actual_count = 0;
-        for(unsigned i = 0; i < lib_arg_count; i++) {
-            unsigned addr = lib_arg_start + i;
-            
-            if(addr >= AVM_STACKSIZE) break;
-            
-            avm_memcell *cell = &vm.stack[addr];
-            
-            if(cell && cell->type != undef_m) actual_count++;
-            else break;
-        }
-        lib_arg_count = actual_count;
-
+        avm_callsaveenvironment();
         vm.topsp = vm.top;
+        vm.totalActuals = 0;
         (*f)();
+        if(!vm.executionFinished) execute_funcexit((instruction*) 0);
     }
 }
 
@@ -82,39 +67,25 @@ void avm_initlibraryfuncs(void) {
     avm_registerlibfunc("sin", libfunc_sin);
 }
 
-unsigned avm_totalactuals(void) { return lib_arg_count; }
-
-avm_memcell *avm_getactual(unsigned i) {    
-    if(i >= lib_arg_count) {
-        avm_error("avm_getactual: argument index %u out of range (total: %u)!", i, lib_arg_count);
-        return NULL;
-    }
-    
-    unsigned addr = lib_arg_start + i;
-    
-    if(addr >= AVM_STACKSIZE) {
-        avm_error("avm_getactual: address %u out of bounds", addr);
-        return NULL;
-    }
-    
-    avm_memcell *cell = &vm.stack[addr];
-    
-    return cell;
+/* Get total actuals from current activation record */
+unsigned avm_totalactuals(void) {
+    return avm_get_envvalue(vm.topsp + AVM_NUMACTUALS_OFFSET);
 }
 
+/* Get the i-th actual argument from current activation record */
+avm_memcell *avm_getactual(unsigned i) {
+    assert(i < avm_totalactuals());
+    return &vm.stack[vm.topsp + AVM_STACKENV_SIZE + 1 + i];
+}
 
 void libfunc_print(void) {
     unsigned n = avm_totalactuals();
-    unsigned i;
-    
-    for(i = 0; i < n; ++i) {
-        avm_memcell *arg = avm_getactual(i);
-        char *s = avm_tostring(arg);
+    for(unsigned i = 0; i < n; ++i) {
+        char *s = avm_tostring(avm_getactual(i));
         printf("%s", s);
         free(s);
     }
     printf("\n");
-    fflush(stdout);
 }
 
 void libfunc_input(void) {
@@ -148,7 +119,7 @@ void libfunc_objectmemberkeys(void) {
         return;
     }
     
-    /* new table for keys */
+    /* Create new table for keys */
     avm_memcellclear(&vm.retval);
     vm.retval.type = table_m;
     vm.retval.data.tableVal = avm_tablenew();
@@ -157,34 +128,28 @@ void libfunc_objectmemberkeys(void) {
     avm_table *source_table = arg->data.tableVal;
     unsigned key_index = 0;
     
-    /* string-indexed buckets */
+    /* Copy string-indexed keys */
     for(unsigned i = 0; i < AVM_TABLE_HASHSIZE; i++) {
         avm_table_bucket *bucket = source_table->strIndexed[i];
         while(bucket) {
-            /* index for key */
             avm_memcell index_cell;
             index_cell.type = number_m;
             index_cell.data.numVal = (double)key_index++;
             
-            /* add key to result table */
             avm_tablesetelem(vm.retval.data.tableVal, &index_cell, &bucket->key);
-            
             bucket = bucket->next;
         }
     }
     
-    /* number-indexed buckets */
+    /* Copy number-indexed keys */
     for(unsigned i = 0; i < AVM_TABLE_HASHSIZE; i++) {
         avm_table_bucket *bucket = source_table->numIndexed[i];
         while(bucket) {
-            /* index for key */
             avm_memcell index_cell;
             index_cell.type = number_m;
             index_cell.data.numVal = (double)key_index++;
             
-            /* add key to result table */
             avm_tablesetelem(vm.retval.data.tableVal, &index_cell, &bucket->key);
-            
             bucket = bucket->next;
         }
     }
@@ -223,112 +188,53 @@ void libfunc_objectcopy(void) {
         return;
     }
     
-    /* new table for the copy */
+    /* Create new table for the copy */
     avm_memcellclear(&vm.retval);
     vm.retval.type = table_m;
     vm.retval.data.tableVal = avm_tablenew();
     avm_tableincrefcounter(vm.retval.data.tableVal);
     
-    /* copy all elements from table */
     avm_table *source_table = arg->data.tableVal;
     
-    /* string-indexed buckets */
+    /* Copy string-indexed buckets */
     for(unsigned i = 0; i < AVM_TABLE_HASHSIZE; i++) {
         avm_table_bucket *bucket = source_table->strIndexed[i];
         while(bucket) {
-            /* if value is a table, recursively copy it */
             avm_memcell copied_value;
             memset(&copied_value, 0, sizeof(avm_memcell));
             
             if(bucket->value.type == table_m) {
-                /* Recursive table copy */
-                copied_value.type = table_m;
-                copied_value.data.tableVal = avm_tablenew();
-                avm_tableincrefcounter(copied_value.data.tableVal);
-                
-                /* copy all elements from nested table */
-                avm_table *nested_source = bucket->value.data.tableVal;
-                
-                /* copy nested string-indexed buckets */
-                for(unsigned j = 0; j < AVM_TABLE_HASHSIZE; j++) {
-                    avm_table_bucket *nested_bucket = nested_source->strIndexed[j];
-                    while(nested_bucket) {
-                        avm_tablesetelem(copied_value.data.tableVal, 
-                                       &nested_bucket->key, 
-                                       &nested_bucket->value);
-                        nested_bucket = nested_bucket->next;
-                    }
-                }
-                
-                /* copy nested number-indexed buckets */
-                for(unsigned j = 0; j < AVM_TABLE_HASHSIZE; j++) {
-                    avm_table_bucket *nested_bucket = nested_source->numIndexed[j];
-                    while(nested_bucket) {
-                        avm_tablesetelem(copied_value.data.tableVal, 
-                                       &nested_bucket->key, 
-                                       &nested_bucket->value);
-                        nested_bucket = nested_bucket->next;
-                    }
-                }
-            } else avm_assign(&copied_value, &bucket->value);
+                /* TODO: Recursive table copy */
+                avm_assign(&copied_value, &bucket->value);
+            } else {
+                avm_assign(&copied_value, &bucket->value);
+            }
             
-            /* add copied key-value to result table */
             avm_tablesetelem(vm.retval.data.tableVal, &bucket->key, &copied_value);
             
-            /* clean up */
             if(copied_value.type == table_m) avm_memcellclear(&copied_value);
             
             bucket = bucket->next;
         }
     }
     
-    /* copy number-indexed buckets */
+    /* Copy number-indexed buckets */
     for(unsigned i = 0; i < AVM_TABLE_HASHSIZE; i++) {
         avm_table_bucket *bucket = source_table->numIndexed[i];
         while(bucket) {
-            /* if value is a table, recursively copy it */
             avm_memcell copied_value;
             memset(&copied_value, 0, sizeof(avm_memcell));
             
             if(bucket->value.type == table_m) {
-                /* Recursive table copy */
-                copied_value.type = table_m;
-                copied_value.data.tableVal = avm_tablenew();
-                avm_tableincrefcounter(copied_value.data.tableVal);
-                
-                /* copy all elements from nested table */
-                avm_table *nested_source = bucket->value.data.tableVal;
-                
-                /* copy nested string-indexed buckets */
-                for(unsigned j = 0; j < AVM_TABLE_HASHSIZE; j++) {
-                    avm_table_bucket *nested_bucket = nested_source->strIndexed[j];
-                    while(nested_bucket) {
-                        avm_tablesetelem(copied_value.data.tableVal, 
-                                       &nested_bucket->key, 
-                                       &nested_bucket->value);
-                        nested_bucket = nested_bucket->next;
-                    }
-                }
-                
-                /* copy nested number-indexed buckets */
-                for(unsigned j = 0; j < AVM_TABLE_HASHSIZE; j++) {
-                    avm_table_bucket *nested_bucket = nested_source->numIndexed[j];
-                    while(nested_bucket) {
-                        avm_tablesetelem(copied_value.data.tableVal, 
-                                       &nested_bucket->key, 
-                                       &nested_bucket->value);
-                        nested_bucket = nested_bucket->next;
-                    }
-                }
-            } else avm_assign(&copied_value, &bucket->value);
+                /* TODO: Recursive table copy */
+                avm_assign(&copied_value, &bucket->value);
+            } else {
+                avm_assign(&copied_value, &bucket->value);
+            }
             
-            /* add copied key-value to result table */
             avm_tablesetelem(vm.retval.data.tableVal, &bucket->key, &copied_value);
             
-            /* clean up */
-            if(copied_value.type == table_m) {
-                avm_memcellclear(&copied_value);
-            }
+            if(copied_value.type == table_m) avm_memcellclear(&copied_value);
             
             bucket = bucket->next;
         }
@@ -336,30 +242,16 @@ void libfunc_objectcopy(void) {
 }
 
 void libfunc_totalarguments(void) {
-    unsigned argcount_addr = AVM_STACKSIZE - 2;
+    unsigned p_topsp = avm_get_envvalue(vm.topsp + AVM_SAVEDTOPSP_OFFSET);
     
-    if(argcount_addr >= AVM_STACKSIZE) {
+    if(!p_topsp) {
+        avm_error("'totalarguments' called outside a function!");
+        vm.retval.type = nil_m;
+    } else {
         avm_memcellclear(&vm.retval);
         vm.retval.type = number_m;
-        vm.retval.data.numVal = 0;
-        return;
+        vm.retval.data.numVal = avm_get_envvalue(p_topsp + AVM_NUMACTUALS_OFFSET);
     }
-    
-    avm_memcell *argcount_cell = &vm.stack[argcount_addr];
-    
-    if(argcount_cell->type == number_m) {
-        double actual_count = argcount_cell->data.numVal - 1.0;
-        if(actual_count < 0) actual_count = 0;
-        
-        avm_memcellclear(&vm.retval);
-        vm.retval.type = number_m;
-        vm.retval.data.numVal = actual_count;
-        return;
-    }
-    
-    avm_memcellclear(&vm.retval);
-    vm.retval.type = number_m;
-    vm.retval.data.numVal = 0;
 }
 
 void libfunc_argument(void) {
@@ -377,7 +269,7 @@ void libfunc_argument(void) {
     }
     
     unsigned index = (unsigned)arg->data.numVal;
-    unsigned p_topsp = vm.stack[vm.topsp + AVM_SAVEDTOPSP_OFFSET].data.numVal;
+    unsigned p_topsp = avm_get_envvalue(vm.topsp + AVM_SAVEDTOPSP_OFFSET);
     
     if(!p_topsp) {
         avm_error("'argument' called outside a function!");
@@ -385,7 +277,7 @@ void libfunc_argument(void) {
         return;
     }
     
-    unsigned total = vm.stack[p_topsp + AVM_NUMACTUALS_OFFSET].data.numVal;
+    unsigned total = avm_get_envvalue(p_topsp + AVM_NUMACTUALS_OFFSET);
     if(index >= total) {
         avm_error("argument index %d out of range (total: %d)!", index, total);
         vm.retval.type = nil_m;
@@ -401,12 +293,11 @@ void libfunc_typeof(void) {
     
     if(n != 1) {
         avm_error("one argument (not %d) expected in 'typeof'!", n);
-        return;
+    } else {
+        avm_memcellclear(&vm.retval);
+        vm.retval.type = string_m;
+        vm.retval.data.strVal = strdup(typeStrings[avm_getactual(0)->type]);
     }
-    
-    avm_memcellclear(&vm.retval);
-    vm.retval.type = string_m;
-    vm.retval.data.strVal = strdup(typeStrings[avm_getactual(0)->type]);
 }
 
 void libfunc_strtonum(void) {
@@ -423,7 +314,14 @@ void libfunc_strtonum(void) {
         return;
     }
     
-    double result = strtod(arg->data.strVal, NULL);
+    char *endptr;
+    double result = strtod(arg->data.strVal, &endptr);
+    
+    /* Check if conversion was successful */
+    if(endptr == arg->data.strVal) {
+        avm_warning("'%s' cannot be converted to number", arg->data.strVal);
+        result = 0.0;
+    }
     
     avm_memcellclear(&vm.retval);
     vm.retval.type = number_m;
