@@ -112,8 +112,8 @@ void avm_initstack(void) {
         memset(&vm.stack[i].data, 0, sizeof(vm.stack[i].data));
     }
 
-    vm.topsp = AVM_STACKSIZE - vm.programVarCount;
-    vm.top = vm.topsp;
+    vm.top = AVM_STACKSIZE - vm.programVarCount;
+    vm.topsp = vm.top;
     
     printf("Stack initialized: topsp=%u, top=%u, programVarCount=%u\n", 
            vm.topsp, vm.top, vm.programVarCount);
@@ -312,7 +312,7 @@ void execute_cycle(void) {
 avm_memcell *avm_translate_operand(vmarg *arg, avm_memcell *reg) {
     switch(arg->type) {
         case global_a: {
-            unsigned addr = AVM_STACKSIZE - 1 - arg->val;
+            unsigned addr = AVM_STACKSIZE  - arg->val;
             return &vm.stack[addr];
         }
         case local_a: {

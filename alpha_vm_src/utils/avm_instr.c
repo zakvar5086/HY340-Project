@@ -6,73 +6,27 @@
 #include "../../alpha_parser_src/headers/stack.h"
 
 execute_func_t executeFuncs[] = {
-    execute_assign,
-    execute_add,
-    execute_sub,
-    execute_mul,
-    execute_div,
-    execute_mod,
-    execute_uminus,
-    execute_and,
-    execute_or,
-    execute_not,
-    execute_jeq,
-    execute_jne,
-    execute_jle,
-    execute_jge, 
-    execute_jlt,
-    execute_jgt,
-    execute_jump,
-    execute_call,
-    execute_pusharg,
-    execute_funcenter,
-    execute_funcexit,
-    execute_newtable,
-    execute_tablegetelem,
-    execute_tablesetelem,
-    execute_nop  
+    execute_assign, execute_add, execute_sub, execute_mul, execute_div, execute_mod,
+    execute_uminus, execute_and, execute_or, execute_not, execute_jeq, execute_jne,
+    execute_jle, execute_jge, execute_jlt, execute_jgt, execute_jump, execute_call,
+    execute_pusharg, execute_funcenter, execute_funcexit, execute_newtable,
+    execute_tablegetelem, execute_tablesetelem, execute_nop  
 };
 
-/* Arithmetic function implementations */
 double add_impl(double x, double y) { return x + y; }
 double sub_impl(double x, double y) { return x - y; }
 double mul_impl(double x, double y) { return x * y; }
-double div_impl(double x, double y) { 
-    if (y == 0.0) {
-        avm_error("Division by zero!");
-        return 0.0;
-    }
-    return x / y; 
-}
-double mod_impl(double x, double y) { 
-    if (((unsigned) y) == 0) {
-        avm_error("Modulo by zero!");
-        return 0.0;
-    }
-    return ((unsigned) x) % ((unsigned) y); 
-}
+double div_impl(double x, double y) { if (y == 0.0) { avm_error("Division by zero!"); return 0.0; } return x / y; }
+double mod_impl(double x, double y) { if (((unsigned) y) == 0) { avm_error("Modulo by zero!"); return 0.0; } return ((unsigned) x) % ((unsigned) y); }
 
-/* Arithmetic dispatch table */
-arithmetic_func_t arithmeticFuncs[] = {
-    add_impl,
-    sub_impl,
-    mul_impl,
-    div_impl,
-    mod_impl
-};
+arithmetic_func_t arithmeticFuncs[] = { add_impl, sub_impl, mul_impl, div_impl, mod_impl };
 
-/* Comparison function implementations */
 unsigned char jle_impl(double x, double y) { return x <= y; }
 unsigned char jge_impl(double x, double y) { return x >= y; }
 unsigned char jlt_impl(double x, double y) { return x < y; }
 unsigned char jgt_impl(double x, double y) { return x > y; }
 
-comparison_func_t comparisonFuncs[] = {
-    jle_impl,
-    jge_impl,
-    jlt_impl,
-    jgt_impl
-};
+comparison_func_t comparisonFuncs[] = { jle_impl, jge_impl, jlt_impl, jgt_impl };
 
 void avm_initinstructions(void) {
     assert(sizeof(executeFuncs)/sizeof(execute_func_t) == 25);
@@ -85,7 +39,7 @@ void execute_arithmetic(instruction *instr) {
     avm_memcell *rv1 = avm_translate_operand(instr->arg1, &vm.ax);
     avm_memcell *rv2 = avm_translate_operand(instr->arg2, &vm.bx);
     
-    assert(lv && ((&vm.stack[AVM_STACKSIZE] >= lv && lv > &vm.stack[vm.top]) || lv == &vm.retval));
+    assert(lv && ((lv >= &vm.stack[1] && lv <= &vm.stack[AVM_STACKSIZE]) || lv == &vm.retval));
     assert(rv1 && rv2);
 
     if(rv1->type != number_m || rv2->type != number_m) {
@@ -99,18 +53,16 @@ void execute_arithmetic(instruction *instr) {
     }
 }
 
-/* Assignment operation */
 void execute_assign(instruction *instr) {
     avm_memcell *lv = avm_translate_operand(instr->result, (avm_memcell*) 0);
     avm_memcell *rv = avm_translate_operand(instr->arg1, &vm.ax);
         
-    assert(lv && ((&vm.stack[AVM_STACKSIZE-1] >= lv && lv > &vm.stack[vm.top]) || lv == &vm.retval));
+    assert(lv && ((lv >= &vm.stack[1] && lv <= &vm.stack[AVM_STACKSIZE]) || lv == &vm.retval));
     assert(rv);
     
     avm_assign(lv, rv);
 }
 
-/* Arithmetic operations */
 void execute_add(instruction *instr) { execute_arithmetic(instr); }
 void execute_sub(instruction *instr) { execute_arithmetic(instr); }
 void execute_mul(instruction *instr) { execute_arithmetic(instr); }
@@ -121,7 +73,7 @@ void execute_uminus(instruction *instr) {
     avm_memcell *lv = avm_translate_operand(instr->result, (avm_memcell*) 0);
     avm_memcell *rv = avm_translate_operand(instr->arg1, &vm.ax);
     
-    assert(lv && ((&vm.stack[AVM_STACKSIZE-1] >= lv && lv > &vm.stack[vm.top]) || lv == &vm.retval));
+    assert(lv && ((lv >= &vm.stack[1] && lv <= &vm.stack[AVM_STACKSIZE]) || lv == &vm.retval));
     assert(rv);
     
     if(rv->type != number_m) {
@@ -134,128 +86,59 @@ void execute_uminus(instruction *instr) {
     }
 }
 
-void execute_and(instruction *instr) {
-    assert(0 && "execute_and should not be called: short-circuit front-end handles AND");
-}
+void execute_and(instruction *instr) { assert(0 && "execute_and should not be called"); }
+void execute_or(instruction *instr) { assert(0 && "execute_or should not be called"); }
+void execute_not(instruction *instr) { assert(0 && "execute_not should not be called"); }
 
-void execute_or(instruction *instr) {
-    assert(0 && "execute_or should not be called: short-circuit front-end handles OR");
-}
-
-void execute_not(instruction *instr) {
-    assert(0 && "execute_not should not be called: short-circuit front-end handles NOT");
-}
-
-/* Jump operations */
 void execute_jump(instruction *instr) {
     assert(instr->result->type == label_a);
     vm.pc = instr->result->val;
 }
 
 typedef unsigned char (*equality_func_t)(avm_memcell*, avm_memcell*);
+unsigned char eq_number(avm_memcell *rv1, avm_memcell *rv2) { return rv1->data.numVal == rv2->data.numVal; }
+unsigned char eq_string(avm_memcell *rv1, avm_memcell *rv2) { return strcmp(rv1->data.strVal, rv2->data.strVal) == 0; }
+unsigned char eq_bool(avm_memcell *rv1, avm_memcell *rv2) { return rv1->data.boolVal == rv2->data.boolVal; }
+unsigned char eq_table(avm_memcell *rv1, avm_memcell *rv2) { return rv1->data.tableVal == rv2->data.tableVal; }
+unsigned char eq_userfunc(avm_memcell *rv1, avm_memcell *rv2) { return rv1->data.funcVal == rv2->data.funcVal; }
+unsigned char eq_libfunc(avm_memcell *rv1, avm_memcell *rv2) { return strcmp(rv1->data.libfuncVal, rv2->data.libfuncVal) == 0; }
+unsigned char eq_nil(avm_memcell *rv1, avm_memcell *rv2) { return 1; }
+unsigned char eq_undef(avm_memcell *rv1, avm_memcell *rv2) { avm_error("'undef' involved in equality!"); return 0; }
 
-unsigned char eq_number(avm_memcell *rv1, avm_memcell *rv2) {
-    return rv1->data.numVal == rv2->data.numVal;
-}
+equality_func_t equalityFuncs[] = { eq_number, eq_string, eq_bool, eq_table, eq_userfunc, eq_libfunc, eq_nil, eq_undef };
 
-unsigned char eq_string(avm_memcell *rv1, avm_memcell *rv2) {
-    return strcmp(rv1->data.strVal, rv2->data.strVal) == 0;
-}
-
-unsigned char eq_bool(avm_memcell *rv1, avm_memcell *rv2) {
-    return rv1->data.boolVal == rv2->data.boolVal;
-}
-
-unsigned char eq_table(avm_memcell *rv1, avm_memcell *rv2) {
-    return rv1->data.tableVal == rv2->data.tableVal;
-}
-
-unsigned char eq_userfunc(avm_memcell *rv1, avm_memcell *rv2) {
-    return rv1->data.funcVal == rv2->data.funcVal;
-}
-
-unsigned char eq_libfunc(avm_memcell *rv1, avm_memcell *rv2) {
-    return strcmp(rv1->data.libfuncVal, rv2->data.libfuncVal) == 0;
-}
-
-unsigned char eq_nil(avm_memcell *rv1, avm_memcell *rv2) {
-    return 1;
-}
-
-unsigned char eq_undef(avm_memcell *rv1, avm_memcell *rv2) {
-    avm_error("'undef' involved in equality!");
-    return 0;
-}
-
-equality_func_t equalityFuncs[] = {
-    eq_number,
-    eq_string,
-    eq_bool,
-    eq_table,
-    eq_userfunc,
-    eq_libfunc,
-    eq_nil,
-    eq_undef
-};
-
-/* Comparison and conditional jumps */
 void execute_jeq(instruction *instr) {
     assert(instr->result->type == label_a);
-    
     avm_memcell *rv1 = avm_translate_operand(instr->arg1, &vm.ax);
     avm_memcell *rv2 = avm_translate_operand(instr->arg2, &vm.bx);
-    
     unsigned char result = 0;
-    
-    if(rv1->type == undef_m || rv2->type == undef_m) {
-        avm_error("'undef' involved in equality!");
-    } else if(rv1->type == nil_m || rv2->type == nil_m) {
-        result = rv1->type == nil_m && rv2->type == nil_m;
-    } else if(rv1->type == bool_m || rv2->type == bool_m) {
-        result = (avm_tobool(rv1) == avm_tobool(rv2));
-    } else if(rv1->type != rv2->type) {
-        avm_error("%s == %s is illegal!", typeStrings[rv1->type], typeStrings[rv2->type]);
-    } else {
-        /* Equality check with dispatching */
-        result = (*equalityFuncs[rv1->type])(rv1, rv2);
-    }
-    
+    if(rv1->type == undef_m || rv2->type == undef_m) { avm_error("'undef' involved in equality!"); } 
+    else if(rv1->type == nil_m || rv2->type == nil_m) { result = rv1->type == nil_m && rv2->type == nil_m; } 
+    else if(rv1->type == bool_m || rv2->type == bool_m) { result = (avm_tobool(rv1) == avm_tobool(rv2)); } 
+    else if(rv1->type != rv2->type) { avm_error("%s == %s is illegal!", typeStrings[rv1->type], typeStrings[rv2->type]); } 
+    else { result = (*equalityFuncs[rv1->type])(rv1, rv2); }
     if(!vm.executionFinished && result) vm.pc = instr->result->val;
 }
 
 void execute_jne(instruction *instr) {
     assert(instr->result->type == label_a);
-    
     avm_memcell *rv1 = avm_translate_operand(instr->arg1, &vm.ax);
     avm_memcell *rv2 = avm_translate_operand(instr->arg2, &vm.bx);
-    
     unsigned char result = 0;
-    
-    if(rv1->type == undef_m || rv2->type == undef_m) {
-        avm_error("'undef' involved in equality!");
-    } else if(rv1->type == nil_m || rv2->type == nil_m) {
-        result = !(rv1->type == nil_m && rv2->type == nil_m);
-    } else if(rv1->type == bool_m || rv2->type == bool_m) {
-        result = (avm_tobool(rv1) != avm_tobool(rv2));
-    } else if(rv1->type != rv2->type) {
-        result = 1;
-    } else {
-        /* Inequality check with dispatching */
-        result = !(*equalityFuncs[rv1->type])(rv1, rv2);
-    }
-    
+    if(rv1->type == undef_m || rv2->type == undef_m) { avm_error("'undef' involved in equality!"); } 
+    else if(rv1->type == nil_m || rv2->type == nil_m) { result = !(rv1->type == nil_m && rv2->type == nil_m); } 
+    else if(rv1->type == bool_m || rv2->type == bool_m) { result = (avm_tobool(rv1) != avm_tobool(rv2)); } 
+    else if(rv1->type != rv2->type) { result = 1; } 
+    else { result = !(*equalityFuncs[rv1->type])(rv1, rv2); }
     if(!vm.executionFinished && result) vm.pc = instr->result->val;
 }
 
 void execute_jle(instruction *instr) {
     assert(instr->result->type == label_a);
-    
     avm_memcell *rv1 = avm_translate_operand(instr->arg1, &vm.ax);
     avm_memcell *rv2 = avm_translate_operand(instr->arg2, &vm.bx);
-    
-    if(rv1->type != number_m || rv2->type != number_m) {
-        avm_error("not a number in comparison!");
-    } else {
+    if(rv1->type != number_m || rv2->type != number_m) { avm_error("not a number in comparison!"); } 
+    else {
         comparison_func_t op = comparisonFuncs[instr->opcode - jle_v];
         if((*op)(rv1->data.numVal, rv2->data.numVal)) vm.pc = instr->result->val;
     }
@@ -273,10 +156,11 @@ void execute_call(instruction *instr) {
         case userfunc_m: {
             avm_callsaveenvironment();
             vm.pc = vm.userfuncs[func->data.funcVal].address;
-            assert(vm.pc < vm.codeSize);
+            assert(vm.pc <= vm.codeSize);
             assert(vm.code[vm.pc].opcode == funcenter_v);
             break;
         }
+        
         case string_m: 
         case libfunc_m: {
             char *funcName = (func->type == string_m) ? func->data.strVal : func->data.libfuncVal;
@@ -286,14 +170,24 @@ void execute_call(instruction *instr) {
                 avm_error("unsupported lib func '%s' called!", funcName);
                 vm.executionFinished = 1;
             } else {
+                unsigned total_args_to_clean = vm.totalActuals;
                 (*f)();
-                vm.totalActuals = 0;
+                
+                if (!vm.executionFinished) {
+                    for (unsigned i = 0; i < total_args_to_clean; ++i) {
+                        avm_memcellclear(&vm.stack[vm.top + 1 + i]);
+                    }
+                    vm.top += total_args_to_clean;
+                }
             }
             break;
         }
-        case table_m: 
+
+        case table_m: {
             avm_call_functor(func->data.tableVal); 
             break;
+        }
+
         default: {
             char *s = avm_tostring(func);
             avm_error("call: cannot bind '%s' to function!", s);
@@ -307,6 +201,12 @@ void execute_pusharg(instruction *instr) {
     avm_memcell *arg = avm_translate_operand(instr->arg1, &vm.ax);
     assert(arg);
     
+    if (vm.pc > 1 && vm.code[vm.pc-1].opcode != pusharg_v) {
+        vm.totalActuals = 0;
+    } else if (vm.pc == 1) {
+        vm.totalActuals = 0;
+    }
+    
     avm_assign(&vm.stack[vm.top], arg);
     ++vm.totalActuals;
     avm_dec_top();    
@@ -315,9 +215,8 @@ void execute_pusharg(instruction *instr) {
 void execute_funcenter(instruction *instr) {
     avm_memcell *func = avm_translate_operand(instr->result, &vm.ax);
     assert(func);
-    assert(vm.pc == vm.userfuncs[func->data.funcVal].address); /* Func address should match PC. */
+    assert(vm.pc == vm.userfuncs[func->data.funcVal].address);
     
-    /* Callee actions here */
     userfunc_t *funcInfo = avm_getfuncinfo(vm.pc);
     vm.topsp = vm.top;
     vm.top = vm.top - funcInfo->localSize;
@@ -331,13 +230,13 @@ void execute_funcexit(instruction *unused) {
     vm.pc = avm_get_envvalue(vm.topsp + AVM_SAVEDPC_OFFSET);
     vm.topsp = avm_get_envvalue(vm.topsp + AVM_SAVEDTOPSP_OFFSET);
     
-    while(++oldTop <= vm.top) /* Intentionally ignoring first. */
+    while(++oldTop <= vm.top)
         avm_memcellclear(&vm.stack[oldTop]);
 }
 
 void execute_newtable(instruction *instr) {  
     avm_memcell *lv = avm_translate_operand(instr->result, (avm_memcell*) 0);
-    assert(lv && ((&vm.stack[AVM_STACKSIZE - 1] >= lv && lv > &vm.stack[vm.top]) || lv == &vm.retval));
+    assert(lv && ((lv >= &vm.stack[1] && lv <= &vm.stack[AVM_STACKSIZE]) || lv == &vm.retval));
 
     avm_memcellclear(lv);
     lv->type = table_m;
@@ -350,8 +249,8 @@ void execute_tablegetelem(instruction *instr) {
     avm_memcell *t = avm_translate_operand(instr->arg1, (avm_memcell*) 0);
     avm_memcell *i = avm_translate_operand(instr->arg2, &vm.ax);
     
-    assert(lv && ((&vm.stack[AVM_STACKSIZE - 1] >= lv && lv > &vm.stack[vm.top]) || lv == &vm.retval));
-    assert(t && (&vm.stack[AVM_STACKSIZE - 1] >= t && t > &vm.stack[vm.top]));
+    assert(lv && ((lv >= &vm.stack[1] && lv <= &vm.stack[AVM_STACKSIZE]) || lv == &vm.retval));
+    assert(t && (t >= &vm.stack[1] && t <= &vm.stack[AVM_STACKSIZE]));
     assert(i);
     
     avm_memcellclear(lv);
@@ -377,7 +276,7 @@ void execute_tablesetelem(instruction *instr) {
     avm_memcell *i = avm_translate_operand(instr->arg1, &vm.ax);
     avm_memcell *c = avm_translate_operand(instr->arg2, &vm.bx);
     
-    assert(t && (&vm.stack[AVM_STACKSIZE-1] >= t && t > &vm.stack[vm.top]));
+    assert(t && (t >= &vm.stack[1] && t <= &vm.stack[AVM_STACKSIZE]));
     assert(i && c);
     
     if(t->type != table_m) {
