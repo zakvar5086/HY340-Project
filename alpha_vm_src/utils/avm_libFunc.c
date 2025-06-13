@@ -44,11 +44,11 @@ void avm_calllibfunc(char *funcName) {
         avm_error("unsupported lib func '%s' called!", funcName);
         vm.executionFinished = 1;
     } else {
-        avm_callsaveenvironment();
-        vm.topsp = vm.top;
+        unsigned saved_topsp = vm.topsp;
         vm.totalActuals = 0;
         (*f)();
-        if(!vm.executionFinished) execute_funcexit((instruction*) 0);
+        
+        vm.topsp = saved_topsp;
     }
 }
 
@@ -69,13 +69,28 @@ void avm_initlibraryfuncs(void) {
 
 /* Get total actuals from current activation record */
 unsigned avm_totalactuals(void) {
+    if(vm.topsp + AVM_NUMACTUALS_OFFSET > AVM_STACKSIZE) {
+        avm_error("topsp + offset (%u) exceeds stack bounds", vm.topsp + AVM_NUMACTUALS_OFFSET);
+        return 0;
+    }
     return avm_get_envvalue(vm.topsp + AVM_NUMACTUALS_OFFSET);
 }
 
 /* Get the i-th actual argument from current activation record */
 avm_memcell *avm_getactual(unsigned i) {
-    assert(i < avm_totalactuals());
-    return &vm.stack[vm.topsp + AVM_STACKENV_SIZE + 1 + i];
+    unsigned total = avm_totalactuals();
+    if(i >= total) {
+        avm_error("argument index %u out of range (total: %u)", i, total);
+        return &vm.stack[0]; // Return dummy cell to avoid crash
+    }
+    
+    unsigned addr = vm.topsp + AVM_STACKENV_SIZE + 1 + i;
+    if(addr > AVM_STACKSIZE) {
+        avm_error("actual argument address %u out of bounds", addr);
+        return &vm.stack[0]; // Return dummy cell to avoid crash
+    }
+    
+    return &vm.stack[addr];
 }
 
 void libfunc_print(void) {

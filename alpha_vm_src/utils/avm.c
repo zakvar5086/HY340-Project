@@ -3,7 +3,6 @@
 avm_state vm;
 
 void avm_initialize(void) {
-    avm_initstack();
     avm_initgc();
     avm_initinstructions();
     avm_initlibraryfuncs();
@@ -24,6 +23,7 @@ void avm_initialize(void) {
     vm.executionFinished = 0;
     vm.codeSize = 0;
     vm.code = NULL;
+    vm.globalVarCount = 0;
     
     vm.strings = NULL;
     vm.numbers = NULL;
@@ -33,6 +33,10 @@ void avm_initialize(void) {
     vm.totalNumbers = 0;
     vm.totalLibfuncs = 0;
     vm.totalUserfuncs = 0;
+    
+    vm.stack = NULL;
+    vm.top = 0;
+    vm.topsp = 0;
 }
 
 void avm_run(char *filename) {
@@ -103,15 +107,16 @@ void avm_initstack(void) {
     }
     
     unsigned i;
-    for(i = 1; i < AVM_STACKSIZE; i++) {
+    for(i = 0; i <= AVM_STACKSIZE; i++) {
         vm.stack[i].type = undef_m;
         memset(&vm.stack[i].data, 0, sizeof(vm.stack[i].data));
     }
 
-    vm.stack[0].type = undef_m;
+    vm.top = AVM_STACKSIZE - vm.globalVarCount;
+    vm.topsp = vm.top;
     
-    vm.top = AVM_STACKSIZE;
-    vm.topsp = 1;
+    printf("Stack initialized: topsp=%u, top=%u, globalVarCount=%u\n", 
+           vm.topsp, vm.top, vm.globalVarCount);
 }
 
 void avm_dec_top(void) {
@@ -130,13 +135,10 @@ void avm_push_envvalue(unsigned val) {
 }
 
 void avm_callsaveenvironment(void) {
-    unsigned totalActuals = avm_totalactuals();
-    avm_push_envvalue(totalActuals);
-
+    avm_push_envvalue(vm.totalActuals);
     assert(vm.code[vm.pc].opcode == call_v);
-    
     avm_push_envvalue(vm.pc + 1);
-    avm_push_envvalue(vm.top + totalActuals + 2);  
+    avm_push_envvalue(vm.top + vm.totalActuals + 2);    
     avm_push_envvalue(vm.topsp);    
 }
 
@@ -148,8 +150,16 @@ void avm_load_program(FILE *file) {
         exit(1);
     }
     
+    // Read global variable count
+    if(fread(&vm.globalVarCount, sizeof(unsigned), 1, file) != 1) {
+        fprintf(stderr, "Error: Failed to read global variable count\n");
+        exit(1);
+    }
+    
     avm_load_constants(file);
     avm_load_code(file);
+    
+    avm_initstack();
 }
 
 void avm_load_constants(FILE *file) {
@@ -241,7 +251,6 @@ void avm_load_constants(FILE *file) {
     }
 }
 
-/* With debug */
 void avm_load_code(FILE *file) {    
     if (fread(&vm.codeSize, sizeof(unsigned), 1, file) != 1) {
         fprintf(stderr, "Error: Failed to read code size\n");
@@ -303,7 +312,7 @@ void execute_cycle(void) {
 avm_memcell *avm_translate_operand(vmarg *arg, avm_memcell *reg) {
     switch(arg->type) {
         case global_a: {
-            unsigned addr = AVM_STACKSIZE - arg->val;
+            unsigned addr = AVM_STACKSIZE - 1 - arg->val;
             return &vm.stack[addr];
         }
         case local_a: {
@@ -366,13 +375,21 @@ avm_memcell *avm_translate_operand(vmarg *arg, avm_memcell *reg) {
 
 unsigned avm_get_envvalue(unsigned i) {
     if(i < 1 || i > AVM_STACKSIZE) {
-        avm_error("Environment value index %u out of bounds", i);
+        avm_error("Environment value index %u out of bounds (valid range: 1-%u)", i, AVM_STACKSIZE);
         return 0;
     }
-    printf("type: %d\n", vm.stack[i].type);
-    assert(vm.stack[i].type == number_m);
+    
+    if(vm.stack[i].type != number_m) {
+        avm_error("Environment value at index %u is not a number (type: %d)", i, vm.stack[i].type);
+        return 0;
+    }
+    
     unsigned val = (unsigned) vm.stack[i].data.numVal;
-    assert(vm.stack[i].data.numVal == ((double) val));
+    if(vm.stack[i].data.numVal != ((double) val)) {
+        avm_error("Environment value at index %u is not an integer", i);
+        return 0;
+    }
+    
     return val;
 }
 
@@ -411,4 +428,28 @@ void avm_call_functor(avm_table *t) {
             avm_error("in calling table: illegal '()' element value!");
         }
     }
+}
+
+void debug_print_stack_state(const char* context) {
+    printf("=== Stack State (%s) ===\n", context);
+    printf("topsp: %u, top: %u, totalActuals: %u\n", vm.topsp, vm.top, vm.totalActuals);
+    printf("Stack contents around top:\n");
+    
+    unsigned start = (vm.top > 5) ? vm.top - 5 : 1;
+    unsigned end = (vm.top + 10 < AVM_STACKSIZE) ? vm.top + 10 : AVM_STACKSIZE;
+    
+    for(unsigned i = start; i <= end; i++) {
+        char marker = ' ';
+        if(i == vm.top) marker = 'T';
+        else if(i == vm.topsp) marker = 'S';
+        
+        printf("[%u]%c type:%d ", i, marker, vm.stack[i].type);
+        if(vm.stack[i].type == number_m) {
+            printf("val:%.0f", vm.stack[i].data.numVal);
+        } else if(vm.stack[i].type == string_m && vm.stack[i].data.strVal) {
+            printf("val:\"%s\"", vm.stack[i].data.strVal);
+        }
+        printf("\n");
+    }
+    printf("========================\n");
 }

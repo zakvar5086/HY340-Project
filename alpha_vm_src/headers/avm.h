@@ -42,6 +42,9 @@ typedef struct {
     /* Function call tracking */
     unsigned totalActuals;
     
+    /* Global variables */
+    unsigned globalVarCount;
+    
     /* Constant pools */
     char **strings;
     double *numbers;
@@ -87,5 +90,7 @@ userfunc_t *avm_getfuncinfo(unsigned address);
 void avm_call_functor(avm_table *functor);
 
 #define AVM_MAGICNUMBER 340200501
+
+void debug_print_stack_state(const char* context);
 
 #endif

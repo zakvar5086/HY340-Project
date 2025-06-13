@@ -16,6 +16,8 @@ extern FILE *yyin;
 extern int yylineno;
 void yyerror(const char *msg);
 
+unsigned int globalVarCount = 0;
+
 unsigned int currentScope = 0;
 int isFunctionScopes[MAX_SCOPE] = {0};
 int isFunctionScope(unsigned int scope);
@@ -418,6 +420,12 @@ lvalue:     IDENTIFIER {
                             SymTableEntry *newSym = SymTable_Insert(symTable, $1, currentScope, yylineno, varType);
                             if(newSym) {
                                 newSym->offset = currentOffset++;
+                                // Track global variable count
+                                if(currentScope == 0 && newSym->type == GLOBAL_VAR) {
+                                    if(newSym->offset >= globalVarCount) {
+                                        globalVarCount = newSym->offset + 1;
+                                    }
+                                }
                                 $$ = newExpr_id(newSym);
                             }
                             else $$ = NULL;
@@ -442,6 +450,12 @@ lvalue:     IDENTIFIER {
                         SymTableEntry *pNew = SymTable_Insert(symTable, $2, currentScope, yylineno, varType);
                         if(pNew){
                             pNew->offset = currentOffset++;
+                            // Track global variable count
+                            if(currentScope == 0 && pNew->type == GLOBAL_VAR) {
+                                if(pNew->offset >= globalVarCount) {
+                                    globalVarCount = pNew->offset + 1;
+                                }
+                            }
                             $$ = newExpr_id(pNew);
                         } else $$ = NULL;
                     }

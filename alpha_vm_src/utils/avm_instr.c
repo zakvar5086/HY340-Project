@@ -277,9 +277,23 @@ void execute_call(instruction *instr) {
             assert(vm.code[vm.pc].opcode == funcenter_v);
             break;
         }
-        case string_m: avm_calllibfunc(func->data.strVal); break;
-        case libfunc_m: avm_calllibfunc(func->data.libfuncVal); break;
-        case table_m: avm_call_functor(func->data.tableVal); break;
+        case string_m: 
+        case libfunc_m: {
+            char *funcName = (func->type == string_m) ? func->data.strVal : func->data.libfuncVal;
+            library_func_t f = avm_getlibraryfunc(funcName);
+            
+            if(!f) {
+                avm_error("unsupported lib func '%s' called!", funcName);
+                vm.executionFinished = 1;
+            } else {
+                (*f)();
+                vm.totalActuals = 0;
+            }
+            break;
+        }
+        case table_m: 
+            avm_call_functor(func->data.tableVal); 
+            break;
         default: {
             char *s = avm_tostring(func);
             avm_error("call: cannot bind '%s' to function!", s);
@@ -301,13 +315,14 @@ void execute_pusharg(instruction *instr) {
 void execute_funcenter(instruction *instr) {
     avm_memcell *func = avm_translate_operand(instr->result, &vm.ax);
     assert(func);
-    assert(vm.pc == func->data.funcVal); /* Func address should match PC. */
+    assert(vm.pc == vm.userfuncs[func->data.funcVal].address); /* Func address should match PC. */
     
     /* Callee actions here */
-    vm.totalActuals = 0;
     userfunc_t *funcInfo = avm_getfuncinfo(vm.pc);
     vm.topsp = vm.top;
     vm.top = vm.top - funcInfo->localSize;
+    
+    vm.totalActuals = 0;
 }
 
 void execute_funcexit(instruction *unused) {
