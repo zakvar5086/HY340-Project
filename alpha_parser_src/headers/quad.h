@@ -22,7 +22,7 @@ typedef enum Expr_t {
     constnum_e,
     constbool_e,
     conststring_e,
-    
+
     nil_e
 } Expr_t;
 
@@ -76,17 +76,19 @@ typedef struct forstmt {
 } forstmt_t;
 
 typedef struct FunctCont {
-    Expr* elist;
+    Expr *elist;
     int method;
-    char* name;
+    char *name;
 } FunctCont_t;
+
+unsigned var_offset;
+void resetVarOffset(void);
+
 
 void emit(iopcode op, Expr *arg1, Expr *arg2, Expr *result, unsigned line);
 unsigned nextQuadLabel(void);
 void expandQuads(void);
 void resetTemp(void);
-unsigned int istempname(SymTableEntry *s);
-unsigned int istempexpr(Expr* e);
 char *newtempname(void);
 SymTableEntry *newtemp();
 void initQuads(void);
@@ -114,17 +116,17 @@ unsigned newlist(unsigned i);
 unsigned mergelist(unsigned l1, unsigned l2);
 void patchlist(unsigned list, unsigned label);
 void patchlabel(unsigned quad, unsigned label);
-Expr* evaluate(Expr* expr);
-Expr* emit_eval(Expr* expr);
-Expr* emit_eval_var(Expr* expr);
+Expr *evaluate(Expr* expr);
+Expr *emit_eval(Expr* expr);
+Expr *emit_eval_var(Expr* expr);
 
-Expr* emit_iftableitem(Expr* expr);
-Expr* member_item(Expr* lvalue, Expr* index);
-Expr* make_call(Expr *lvalue, Expr *reversed_elist);
-Expr* handle_method_call(Expr* lvalue, FunctCont_t* callsuffix);
-Expr* handle_tableitem_assignment(Expr* lvalue, Expr* expr);
+Expr *emit_iftableitem(Expr* expr);
+Expr *member_item(Expr* lvalue, Expr* index);
+Expr *make_call(Expr *lvalue, Expr *reversed_elist);
+Expr *handle_method_call(Expr* lvalue, FunctCont_t* callsuffix);
+Expr *handle_tableitem_assignment(Expr* lvalue, Expr* expr);
 
-Expr* create_table();
+Expr *create_table();
 void add_table_element(Expr* table, unsigned index, Expr* value);
 void add_indexed_element(Expr* table, Expr* index, Expr* value);
 

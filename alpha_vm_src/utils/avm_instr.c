@@ -242,6 +242,10 @@ void execute_call(instruction *instr) {
     avm_memcell *func = avm_translate_operand(instr->arg1, &vm.ax);
     assert(func);
 
+    if(vm.pc == 1 || vm.code[vm.pc - 1].opcode != pusharg_v) {
+        vm.totalActuals = 0;
+    }
+
     unsigned saved_totalActuals = vm.totalActuals;
 
     switch(func->type) {
@@ -268,11 +272,9 @@ void execute_call(instruction *instr) {
                 for(unsigned i = 0; i < saved_totalActuals; ++i) {
                     avm_memcellclear(&vm.stack[vm.top + 1 + i]);
                 }
-
                 vm.top += saved_totalActuals;
             }
         }
-
         break;
     }
 
@@ -289,14 +291,19 @@ void execute_call(instruction *instr) {
     }
     }
 
-    vm.totalActuals = saved_totalActuals;
+    vm.totalActuals = 0;
 }
 
 void execute_pusharg(instruction *instr) {
     avm_memcell *arg = avm_translate_operand(instr->arg1, &vm.ax);
     assert(arg);
 
-    if(vm.pc > 1 && vm.code[vm.pc - 1].opcode != pusharg_v) {
+    unsigned next_pc = vm.pc + 1;
+    if(next_pc <= vm.codeSize && vm.code[next_pc].opcode == call_v) {
+        if(vm.pc == 1 || vm.code[vm.pc - 1].opcode != pusharg_v) {
+            vm.totalActuals = 0;
+        }
+    } else if(vm.pc > 1 && vm.code[vm.pc - 1].opcode != pusharg_v) {
         vm.totalActuals = 0;
     }
 
@@ -347,7 +354,7 @@ void execute_tablegetelem(instruction *instr) {
     assert(i);
 
     avm_memcellclear(lv);
-    lv->type = nil_m; // Προεπιλογή σε nil
+    lv->type = nil_m;
 
     if(t->type != table_m) {
         avm_error("illegal use of type %s as table!", typeStrings[t->type]);
@@ -357,8 +364,6 @@ void execute_tablegetelem(instruction *instr) {
         if(content) {
             avm_assign(lv, content);
         }
-
-        // Αν δεν βρεθεί (content == NULL), το lv παραμένει nil. Δεν χρειάζεται warning.
     }
 }
 

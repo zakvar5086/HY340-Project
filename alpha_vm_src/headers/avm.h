@@ -27,30 +27,30 @@ typedef struct {
     avm_memcell *stack;
     unsigned top;
     unsigned topsp;
-    
+
     /* Special registers */
     avm_memcell retval;
     avm_memcell ax, bx, cx;
-    
+
     /* Program execution state */
     instruction *code;
     unsigned pc;
     unsigned codeSize;
     unsigned char executionFinished;
     unsigned currLine;
-    
+
     /* Function call tracking */
     unsigned totalActuals;
-    
+
     /* Global variables */
     unsigned programVarCount;
-    
+
     /* Constant pools */
     char **strings;
     double *numbers;
     char **libfuncs;
     userfunc_t *userfuncs;
-    
+
     unsigned totalStrings;
     unsigned totalNumbers;
     unsigned totalLibfuncs;
@@ -59,6 +59,8 @@ typedef struct {
 
 /* Global VM instance */
 extern avm_state vm;
+
+void debug_print_stack_state(const char* context);
 
 /* VM Lifecycle */
 void avm_initialize(void);

@@ -387,9 +387,16 @@ void libfunc_totalarguments(void) {
         return;
     }
 
+    unsigned env_addr = vm.topsp + AVM_NUMACTUALS_OFFSET;
+    if(env_addr > AVM_STACKSIZE || env_addr < 1) {
+        avm_error("Invalid stack access in 'totalarguments'!");
+        vm.retval.type = nil_m;
+        return;
+    }
+
     avm_memcellclear(&vm.retval);
     vm.retval.type = number_m;
-    vm.retval.data.numVal = avm_get_envvalue(vm.topsp + AVM_NUMACTUALS_OFFSET);
+    vm.retval.data.numVal = avm_get_envvalue(env_addr);
 }
 
 void libfunc_argument(void) {

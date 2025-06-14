@@ -133,7 +133,7 @@ expr:       expr PLUS expr {
                     fprintf(stderr, "\033[1;31mError:\033[0m Invalid operands to '+' operator (line %d)\n", yylineno);
 
                 $$ = newExpr(arithexpr_e);
-                $$->sym = istempexpr($1) ? $1->sym : newtemp();;
+                $$->sym = newtemp();
                 emit(add, $1, $3, $$, 0);
             }
             | expr MINUS expr {
@@ -141,7 +141,7 @@ expr:       expr PLUS expr {
                     fprintf(stderr, "\033[1;31mError:\033[0m Invalid operands to '-' operator (line %d)\n", yylineno);
 
                 $$ = newExpr(arithexpr_e);
-                $$->sym = istempexpr($1) ? $1->sym : newtemp();;
+                $$->sym = newtemp();
                 emit(sub, $1, $3, $$, 0);
             }
             | expr MULTIPLY expr {
@@ -149,7 +149,7 @@ expr:       expr PLUS expr {
                     fprintf(stderr, "\033[1;31mError:\033[0m Invalid operands to '*' operator (line %d)\n", yylineno);
 
                 $$ = newExpr(arithexpr_e);
-                $$->sym = istempexpr($1) ? $1->sym : newtemp();;
+                $$->sym = newtemp();
                 emit(mul, $1, $3, $$, 0);
             }
             | expr DIVIDE expr {
@@ -159,7 +159,7 @@ expr:       expr PLUS expr {
                     fprintf(stderr, "\033[1;31mError:\033[0m Division by zero (line %d)\n", yylineno);
 
                 $$ = newExpr(arithexpr_e);
-                $$->sym = istempexpr($1) ? $1->sym : newtemp();;
+                $$->sym = newtemp();
                 emit(div_op, $1, $3, $$, 0);
             }
             | expr MOD expr {
@@ -167,7 +167,7 @@ expr:       expr PLUS expr {
                     fprintf(stderr, "\033[1;31mError:\033[0m Invalid operands to '%%' operator (line %d)\n", yylineno);
 
                 $$ = newExpr(arithexpr_e);
-                $$->sym = istempexpr($1) ? $1->sym : newtemp();;
+                $$->sym = newtemp();
                 emit(mod_op, $1, $3, $$, 0);
             }
             | expr GREATER { if($1->type == boolexpr_e) $1 = emit_eval($1) } expr {
@@ -255,7 +255,7 @@ M:          { $$ = nextQuadLabel(); }
 term:       LPAREN expr RPAREN { $$ = $2; if($2->type == boolexpr_e) $2 = emit_eval($2); }
             | MINUS expr %prec UMINUS {
                 $$ = newExpr(arithexpr_e);
-                $$->sym = istempexpr($2) ? $2->sym : newtemp();
+                $$->sym = newtemp();
                 emit(uminus, $2, NULL, $$, 0);
             }
             | NOT expr {
@@ -505,7 +505,7 @@ call:       call LPAREN elist RPAREN {
                 }
                 else {
                     SymTableEntry *tmp;
-                    if($1->sym->name && !istempname($1->sym)) tmp = SymTable_LookupAny(symTable, $1->sym->name);
+                    if($1->sym->name) tmp = SymTable_LookupAny(symTable, $1->sym->name);
                     else tmp = $1->sym;
 
                     if(!tmp) {

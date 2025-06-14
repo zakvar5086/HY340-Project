@@ -141,6 +141,8 @@ void avm_dec_top(void) {
 }
 
 void avm_push_envvalue(unsigned val) {
+    avm_memcellclear(&vm.stack[vm.top]);
+
     vm.stack[vm.top].type = number_m;
     vm.stack[vm.top].data.numVal = val;
     avm_dec_top();

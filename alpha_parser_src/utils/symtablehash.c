@@ -3,6 +3,7 @@
 #include <string.h>
 #include <assert.h>
 #include "../headers/symtable.h"
+#include "../headers/quad.h"
 #include "../headers/targetcode.h"
 
 #define hash_multi 65599
@@ -21,20 +22,20 @@ SymTable *SymTable_New(void) {
     SymTable *table = malloc(sizeof(SymTable));
 
     assert(table);
-    
+
     table->length = 0;
 
     for(int i = 0; i < HASH_SIZE; i++) table->buckets[i] = NULL;
     for(int i = 0; i < MAX_SCOPE; i++) table->scopeLists[i] = NULL;
-    
+
     return table;
 }
 
 void SymTable_Free(SymTable *table) {
-    
+
     Binding *pCurrent;
     int index;
-    
+
     assert(table);
 
     for(index = 0; index < HASH_SIZE; index++) {
@@ -62,7 +63,7 @@ unsigned int SymTable_getLength(SymTable *table) {
 }
 
 SymTableEntry *SymTable_Insert(SymTable *table, const char *name, unsigned int scope, unsigned int line, SymbolType type) {
-    
+
     SymTableEntry *existing;
     SymTableEntry *entry;
     Binding *pNewBinding;
@@ -85,6 +86,12 @@ SymTableEntry *SymTable_Insert(SymTable *table, const char *name, unsigned int s
     entry->isActive = 1;
     entry->type = type;
     entry->nextInScope = NULL;
+    if(type == LOCAL_VAR) {
+        entry->offset = var_offset++;
+    } else {
+        entry->offset = 0;
+    }
+
 
     SymTableEntry **scopeHead = &table->scopeLists[scope];
     if(*scopeHead == NULL || (*scopeHead)->line > line) {
@@ -127,9 +134,9 @@ SymTableEntry *SymTable_Insert(SymTable *table, const char *name, unsigned int s
 
 
 SymTableEntry *SymTable_Lookup(SymTable *table, const char *name, unsigned int scope) {
-    
+
     SymTableEntry *pCurrent;
-    
+
     assert(table);
     assert(name);
 
@@ -142,9 +149,9 @@ SymTableEntry *SymTable_Lookup(SymTable *table, const char *name, unsigned int s
 }
 
 SymTableEntry *SymTable_LookupAny(SymTable *table, const char *name) {
-    
+
     SymTableEntry *pCurrent;
-    
+
     assert(table);
     assert(name);
 
@@ -172,10 +179,10 @@ void SymTable_Hide(SymTable *table, unsigned int scope) {
     }
 }
 
-SymTable* SymTable_Initialize(void) {
+SymTable *SymTable_Initialize(void) {
     SymTable* table = SymTable_New();
 
-    const char* libfuncs[] = {
+    const char *libfuncs[] = {
         "print", "input", "objectmemberkeys", "objecttotalmembers", "objectcopy",
         "totalarguments", "argument", "typeof", "strtonum", "sqrt", "cos", "sin"
     };
@@ -200,8 +207,8 @@ void SymTable_Print(SymTable *table) {
                 curr->type == USERFUNC   ? "user function" :
                 curr->type == LIBFUNC    ? "library function" : "unknown";
 
-            printf("\"%s\" [%s] (line %u) (scope %u)\n",
-                   curr->name, typeStr, curr->line, curr->scope);
+            printf("\"%s\" [%s] (line %u) (scope %u) (offset %u)\n",
+                   curr->name, typeStr, curr->line, curr->scope, curr->offset);
 
             curr = curr->nextInScope;
         }
