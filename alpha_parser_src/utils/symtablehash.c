@@ -83,15 +83,11 @@ SymTableEntry *SymTable_Insert(SymTable *table, const char *name, unsigned int s
     entry->scope = scope;
     entry->line = line;
     entry->offset = 0;
+    entry->localCount = 0;
+    entry->taddress = 0;
     entry->isActive = 1;
     entry->type = type;
     entry->nextInScope = NULL;
-    if(type == LOCAL_VAR) {
-        entry->offset = var_offset++;
-    } else {
-        entry->offset = 0;
-    }
-
 
     SymTableEntry **scopeHead = &table->scopeLists[scope];
     if(*scopeHead == NULL || (*scopeHead)->line > line) {
@@ -187,7 +183,10 @@ SymTable *SymTable_Initialize(void) {
         "totalarguments", "argument", "typeof", "strtonum", "sqrt", "cos", "sin"
     };
 
-    for(int i = 0; i < 12; i++) SymTable_Insert(table, libfuncs[i], 0, 0, LIBFUNC);
+    for(int i = 0; i < 12; i++) {
+        SymTableEntry *entry = SymTable_Insert(table, libfuncs[i], 0, 0, LIBFUNC);
+        if(entry) entry->offset = 0;
+    }
 
     return table;
 }

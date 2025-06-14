@@ -9,7 +9,7 @@ unsigned quadsSize = 0;
 unsigned curr_quad = 0;
 unsigned int temp_counter = 0;
 unsigned int offset;
-unsigned var_offet = 0;
+extern int currentOffset;
 char labelStr[256] = "";
 
 #define EXPAND_SIZE 1024
@@ -26,7 +26,6 @@ void initQuads() {
     quadsSize = EXPAND_SIZE;
     curr_quad = 1;
     temp_counter = 0;
-    var_offet = 0;
 }
 
 void expandQuads() {
@@ -44,13 +43,8 @@ unsigned nextQuadLabel() {
     return curr_quad;
 }
 
-void resetVarOffset(void) {
-    var_offset = 0;
-}
-
 void resetTemp() {
     temp_counter = 0;
-    resetVarOffset();
 }
 
 char *newtempname() {
@@ -70,7 +64,7 @@ SymTableEntry *newtemp() {
     SymTableEntry *tmp = SymTable_LookupAny(symTable, name);
     if(!tmp) {
         tmp = SymTable_Insert(symTable, name, currentScope, 0, LOCAL_VAR);
-        tmp->offset = temp_counter++;
+        tmp->offset = currentOffset++;
     }
     free(name);
     return tmp;

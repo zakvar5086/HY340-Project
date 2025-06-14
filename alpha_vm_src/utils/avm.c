@@ -2,6 +2,26 @@
 
 avm_state vm;
 
+void debug_print_stack_state(const char* context) {
+    printf("\n=== DEBUG [%s] ===\n", context);
+    printf("VM State: pc=%u, top=%u, topsp=%u, totalActuals=%u\n",
+           vm.pc, vm.top, vm.topsp, vm.totalActuals);
+    printf("Execution finished: %s\n", vm.executionFinished ? "YES" : "NO");
+
+    // Print top few stack entries
+    printf("Stack near top:\n");
+    for(unsigned i = vm.top; i <= vm.top + 5 && i <= AVM_STACKSIZE; i++) {
+        printf("  [%u]: type=%s", i, typeStrings[vm.stack[i].type]);
+        if(vm.stack[i].type == number_m) {
+            printf(" val=%f", vm.stack[i].data.numVal);
+        } else if(vm.stack[i].type == string_m) {
+            printf(" val=\"%s\"", vm.stack[i].data.strVal);
+        }
+        printf("\n");
+    }
+    printf("==================\n\n");
+}
+
 void avm_initialize(void) {
     avm_initgc();
     avm_initinstructions();

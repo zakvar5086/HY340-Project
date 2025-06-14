@@ -25,7 +25,7 @@ int isFunctionScope(unsigned int scope);
 int isLoop = 0;
 
 static void *offsetStack;
-static int currentOffset = 0;
+int currentOffset = 0;
 void initOffsetStack();
 
 static int anon_func = 0;
@@ -633,7 +633,9 @@ block:      LBRACE {
                 int *saved = malloc(sizeof *saved);
                 *saved = currentOffset;
                 pushStack(offsetStack, saved);
-                currentOffset = 0;
+                if(!currFunc || functionBlockScope != currentScope) {
+                    currentOffset = 0;
+                }
             } stmt_list RBRACE {
                 if(currentScope == functionBlockScope) currFunc->localCount = currentOffset;
                 int *rest = popStack(offsetStack);

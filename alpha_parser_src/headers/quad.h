@@ -81,10 +81,6 @@ typedef struct FunctCont {
     char *name;
 } FunctCont_t;
 
-unsigned var_offset;
-void resetVarOffset(void);
-
-
 void emit(iopcode op, Expr *arg1, Expr *arg2, Expr *result, unsigned line);
 unsigned nextQuadLabel(void);
 void expandQuads(void);

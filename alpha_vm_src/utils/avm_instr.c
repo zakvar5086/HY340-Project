@@ -85,7 +85,7 @@ void execute_assign(instruction *instr) {
     avm_memcell *lv = avm_translate_operand(instr->result, (avm_memcell *)0);
     avm_memcell *rv = avm_translate_operand(instr->arg1, &vm.ax);
 
-    assert(lv && ((lv >= &vm.stack[1] && lv <= &vm.stack[AVM_STACKSIZE]) || lv == &vm.retval));
+    assert(lv && ((lv >= &vm.stack[0] && lv <= &vm.stack[AVM_STACKSIZE]) || lv == &vm.retval));
     assert(rv);
 
     avm_assign(lv, rv);

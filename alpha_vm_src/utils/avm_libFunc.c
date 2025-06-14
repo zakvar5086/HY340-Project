@@ -381,6 +381,8 @@ void libfunc_objectcopy(void) {
 }
 
 void libfunc_totalarguments(void) {
+    //debug_print_stack_state("libfunc_totalarguments ENTRY");
+
     if(vm.topsp >= AVM_STACKSIZE - vm.programVarCount) {
         avm_error("'totalarguments' called outside a function!");
         vm.retval.type = nil_m;
@@ -397,9 +399,13 @@ void libfunc_totalarguments(void) {
     avm_memcellclear(&vm.retval);
     vm.retval.type = number_m;
     vm.retval.data.numVal = avm_get_envvalue(env_addr);
+
+    //debug_print_stack_state("libfunc_totalarguments EXIT");
 }
 
 void libfunc_argument(void) {
+    //debug_print_stack_state("libfunc_argument ENTRY");
+
     if(vm.topsp >= AVM_STACKSIZE - vm.programVarCount) {
         avm_error("'argument' called outside a function!");
         vm.retval.type = nil_m;
@@ -423,6 +429,8 @@ void libfunc_argument(void) {
     unsigned index = (unsigned)arg->data.numVal;
     unsigned total = avm_get_envvalue(vm.topsp + AVM_NUMACTUALS_OFFSET);
 
+    //printf("DEBUG: argument(%u) - total args available: %u\n", index, total);
+
     if(index >= total) {
         avm_error("argument index %u out of range (total: %u)!", index, total);
         vm.retval.type = nil_m;
@@ -431,6 +439,8 @@ void libfunc_argument(void) {
 
     avm_memcellclear(&vm.retval);
     avm_assign(&vm.retval, &vm.stack[vm.topsp + AVM_STACKENV_SIZE + 1 + index]);
+
+    //debug_print_stack_state("libfunc_argument EXIT");
 }
 
 void libfunc_typeof(void) {
