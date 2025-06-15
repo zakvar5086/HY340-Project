@@ -250,8 +250,13 @@ void execute_call(instruction *instr) {
 
     switch(func->type) {
     case userfunc_m: {
+        unsigned *addr_ptr = &vm.userfuncs[func->data.funcVal].address;
+        unsigned target_address = *addr_ptr;
+
         avm_callsaveenvironment();
-        vm.pc = vm.userfuncs[func->data.funcVal].address;
+
+        vm.pc = target_address;
+
         assert(vm.pc <= vm.codeSize);
         assert(vm.code[vm.pc].opcode == funcenter_v);
         break;

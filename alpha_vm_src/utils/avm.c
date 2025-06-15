@@ -344,11 +344,6 @@ void execute_cycle(void) {
 
     instruction *instr = vm.code + vm.pc;
 
-    if(instr->opcode < 0 || instr->opcode > AVM_MAX_INSTRUCTIONS) {
-        avm_error("Invalid opcode %d at instruction %u", instr->opcode, vm.pc);
-        return;
-    }
-
     if(instr->srcLine)
         vm.currLine = instr->srcLine;
 
@@ -364,22 +359,52 @@ avm_memcell *avm_translate_operand(vmarg *arg, avm_memcell *reg) {
     case global_a:
         return &vm.stack[AVM_STACKSIZE - arg->val];
 
-    case local_a:
-        return &vm.stack[vm.topsp - arg->val];
+    case local_a: {
+        unsigned local_addr = vm.topsp - arg->val;
 
-    case formal_a:
-        return &vm.stack[vm.topsp + AVM_STACKENV_SIZE + 1 + arg->val];
+        if(local_addr < 1 || local_addr > AVM_STACKSIZE) {
+            avm_error("Local variable access out of bounds (offset %u, topsp %u)",
+                      arg->val, vm.topsp);
+            return reg;
+        }
+
+        return &vm.stack[local_addr];
+    }
+
+    case formal_a: {
+        unsigned formal_addr = vm.topsp + AVM_STACKENV_SIZE + 1 + arg->val;
+
+        if(formal_addr > AVM_STACKSIZE) {
+            avm_error("Formal argument access out of bounds (offset %u, topsp %u)",
+                      arg->val, vm.topsp);
+            return reg;
+        }
+
+        return &vm.stack[formal_addr];
+    }
 
     case retval_a:
         return &vm.retval;
 
     case number_a: {
+        if(arg->val >= vm.totalNumbers) {
+            avm_error("Number constant index %u out of bounds (total %u)",
+                      arg->val, vm.totalNumbers);
+            reg->type = nil_m;
+            return reg;
+        }
         reg->type = number_m;
         reg->data.numVal = vm.numbers[arg->val];
         return reg;
     }
 
     case string_a: {
+        if(arg->val >= vm.totalStrings) {
+            avm_error("String constant index %u out of bounds (total %u)",
+                      arg->val, vm.totalStrings);
+            reg->type = nil_m;
+            return reg;
+        }
         reg->type = string_m;
         reg->data.strVal = strdup(vm.strings[arg->val]);
         return reg;
@@ -387,7 +412,7 @@ avm_memcell *avm_translate_operand(vmarg *arg, avm_memcell *reg) {
 
     case bool_a: {
         reg->type = bool_m;
-        reg->data.boolVal = arg->val;
+        reg->data.boolVal = (arg->val != 0);
         return reg;
     }
 
@@ -397,19 +422,38 @@ avm_memcell *avm_translate_operand(vmarg *arg, avm_memcell *reg) {
     }
 
     case userfunc_a: {
+        if(arg->val >= vm.totalUserfuncs) {
+            avm_error("User function index %u out of bounds (total %u)",
+                      arg->val, vm.totalUserfuncs);
+            reg->type = nil_m;
+            return reg;
+        }
         reg->type = userfunc_m;
         reg->data.funcVal = arg->val;
         return reg;
     }
 
     case libfunc_a: {
+        if(arg->val >= vm.totalLibfuncs) {
+            avm_error("Library function index %u out of bounds (total %u)",
+                      arg->val, vm.totalLibfuncs);
+            reg->type = nil_m;
+            return reg;
+        }
         reg->type = libfunc_m;
         reg->data.libfuncVal = vm.libfuncs[arg->val];
         return reg;
     }
 
+    case label_a:
+        avm_error("Attempt to translate label operand as data");
+        reg->type = undef_m;
+        return reg;
+
     default:
-        assert(0);
+        avm_error("Unknown operand type %d", arg->type);
+        reg->type = undef_m;
+        return reg;
     }
 }
 

@@ -143,12 +143,19 @@ void libfunc_print(void) {
 
     for(unsigned i = 0; i < n; ++i) {
         print_recursive(avm_getactual(i), visited_tables);
-
         if(i < n - 1)
             printf(" ");
     }
     printf("\n");
     destroyStack(visited_tables);
+
+    avm_memcellclear(&vm.retval);
+    if(n > 0) {
+        vm.retval.type = number_m;
+        vm.retval.data.numVal = (double)n;
+    } else {
+        vm.retval.type = nil_m;
+    }
 }
 
 void libfunc_input(void) {

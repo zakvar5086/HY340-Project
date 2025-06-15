@@ -93,7 +93,7 @@ char *table_tostring(avm_memcell *m)    {
 }
 char *userfunc_tostring(avm_memcell *m) {
     char *s = (char*)malloc(64);
-    sprintf(s, "userfunc@%u", m->data.funcVal);
+    sprintf(s, "user function %u", vm.userfuncs[m->data.funcVal].address);
     return s;
 }
 char *libfunc_tostring(avm_memcell *m)  {

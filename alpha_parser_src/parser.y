@@ -7,6 +7,7 @@
 #include "quad.h"
 #include "stack.h"
 #include "targetcode.h"
+#include "scope_offset_manager.h"
 #include "parser.tab.h"
 
 #define YY_DECL int yylex(void)
@@ -385,7 +386,6 @@ primary:    lvalue {
             ;
 
 lvalue:     IDENTIFIER {
-                int varType = (currentScope == 0) ? GLOBAL_VAR : LOCAL_VAR;
                 SymTableEntry *pCurr = SymTable_Lookup(symTable, $1, currentScope);
 
                 if(pCurr) {
@@ -417,13 +417,13 @@ lvalue:     IDENTIFIER {
                                     pCurr->type == GLOBAL_VAR)) {
                             $$ = newExpr_id(pCurr);
                         } else {
-                            SymTableEntry *newSym = SymTable_Insert(symTable, $1, currentScope, yylineno, varType);
+                            SymTableEntry *newSym = declareVariable(symTable, $1, currentScope, yylineno);
                             if(newSym) {
-                                newSym->offset = currentOffset++;
                                 updateProgramVarCount(newSym);
                                 $$ = newExpr_id(newSym);
+                            } else {
+                                $$ = NULL;
                             }
-                            else $$ = NULL;
                         }
                     }
                 }
@@ -435,19 +435,19 @@ lvalue:     IDENTIFIER {
                     fprintf(stderr, "\033[1;31mError:\033[0m Redeclaration of symbol '%s' in scope %u (line %d)\n", $2, currentScope, yylineno);
                     $$ = newExpr_id(pCurr);
                 } else {
-                    int varType = (currentScope == 0) ? GLOBAL_VAR : LOCAL_VAR;
                     SymTableEntry *libFunc = SymTable_Lookup(symTable, $2, 0);
 
                     if(libFunc && libFunc->type == LIBFUNC) {
                         fprintf(stderr, "\033[1;31mError:\033[0m Symbol '%s' shadows library function (line %d)\n", $2, yylineno);
                         $$ = NULL;
                     } else {
-                        SymTableEntry *pNew = SymTable_Insert(symTable, $2, currentScope, yylineno, varType);
+                        SymTableEntry *pNew = declareVariable(symTable, $2, currentScope, yylineno);
                         if(pNew){
-                            pNew->offset = currentOffset++;
                             updateProgramVarCount(pNew);
                             $$ = newExpr_id(pNew);
-                        } else $$ = NULL;
+                        } else {
+                            $$ = NULL;
+                        }
                     }
                 }
             }
@@ -628,18 +628,26 @@ indexedelem: LBRACE expr COLON expr RBRACE {
 
 block:      LBRACE {
                 ++currentScope;
-                if(currFunc && functionBlockScope == 0) functionBlockScope = currentScope;
-                int *saved = malloc(sizeof *saved);
-                *saved = currentOffset;
-                pushStack(offsetStack, saved);
-                if(!currFunc || functionBlockScope != currentScope) {
-                    currentOffset = 0;
+                int isFunctionMainBlock = (currFunc && functionBlockScope == 0);
+                
+                if(isFunctionMainBlock) {
+                    functionBlockScope = currentScope;
+                } else { 
+                    if(currscopespace() == PROGRAM_SPACE) {
+                        enterBlock();
+                    }
                 }
             } stmt_list RBRACE {
-                if(currentScope == functionBlockScope) currFunc->localCount = currentOffset;
-                int *rest = popStack(offsetStack);
-                currentOffset = *rest;
-                free(rest);
+                int isFunctionMainBlock = (currentScope == functionBlockScope);
+                if(isFunctionMainBlock && currFunc) {
+                    currFunc->localCount = currscopeoffset();
+                    functionBlockScope = 0;
+                } else {
+                    if(currscopespace() == PROGRAM_SPACE) {
+                        exitBlock(0);
+                    }
+                }
+                
                 $$ = $3;
                 SymTable_Hide(symTable, currentScope);
                 --currentScope;
@@ -665,6 +673,8 @@ funcprefix: FUNCTION IDENTIFIER {
                         funcExpr->sym = $$;
                         emit(jump, NULL, NULL, NULL, 0);
                         emit(funcstart, NULL, NULL, funcExpr, 0);
+                        
+                        enterFunctionPrefix();
                     }
                 }
             }
@@ -676,12 +686,15 @@ funcprefix: FUNCTION IDENTIFIER {
                 currFunc = $$;
                 $$->taddress = nextQuadLabel();
 
-                if(!$$) fprintf(stderr, "\033[1;31mError:\033[0m Failed to create anonymous function '%s' (line %d)\n", name, yylineno);
-                else {
+                if(!$$) {
+                    fprintf(stderr, "\033[1;31mError:\033[0m Failed to create anonymous function '%s' (line %d)\n", name, yylineno);
+                } else {
                     Expr *funcExpr = newExpr(programfunc_e);
                     funcExpr->sym = $$;
                     emit(jump, NULL, NULL, NULL, 0);
                     emit(funcstart, NULL, NULL, funcExpr, 0);
+                    
+                    enterFunctionPrefix();
                 }
                 free(name);
             }
@@ -690,11 +703,8 @@ funcprefix: FUNCTION IDENTIFIER {
 funcargs:   LPAREN { 
                 ++currentScope;
                 isFunctionScopes[currentScope] = 1;
-                int *saved = malloc(sizeof *saved);
-                *saved = currentOffset;
-                pushStack(offsetStack, saved);
-                currentOffset = 0;
             } idlist RPAREN { 
+                enterFunctionLocals();
                 --currentScope;
             }
             ;
@@ -703,14 +713,15 @@ funcdef:    funcprefix M funcargs block {
                 patchlist($4->retlist, nextQuadLabel());
 
                 if($1) {
+                    int totalLocals = exitFunctionBody();
+                    $1->localCount = totalLocals;
+                    
                     Expr *funcExpr = newExpr(programfunc_e);
                     funcExpr->sym = $1;
                     emit(funcend, NULL, NULL, funcExpr, 0);
                     patchlabel($2 - 2, nextQuadLabel());
                     
-                    int *rest = popStack(offsetStack);
-                    currentOffset = *rest;
-                    free(rest);
+                    exitFunctionDefinition();
                 }
                 currFunc = NULL;
                 functionBlockScope = 0;
@@ -722,8 +733,9 @@ idlist:     {  }
             | IDENTIFIER { 
                 SymTableEntry *libFunc = SymTable_Lookup(symTable, $1, 0);
 
-                if(libFunc && libFunc->type == LIBFUNC) fprintf(stderr, "\033[1;31mError:\033[0m Cannot shadow a library function. '%s' (line %d)\n", $1, yylineno);
-                else {
+                if(libFunc && libFunc->type == LIBFUNC) {
+                    fprintf(stderr, "\033[1;31mError:\033[0m Cannot shadow a library function. '%s' (line %d)\n", $1, yylineno);
+                } else {
                     int scope;
                     for(scope = currentScope; scope >= 0; scope--) {
                         SymTableEntry *pCurr = SymTable_Lookup(symTable, $1, scope);
@@ -744,8 +756,9 @@ idlist:     {  }
                         }
                     }
                     SymTableEntry *newEntry = SymTable_Insert(symTable, $1, currentScope, yylineno, FORMAL);
-                    if(newEntry) newEntry->offset = currentOffset++;
-
+                    if(newEntry) {
+                        assignSymbolSpaceAndOffset(newEntry);
+                    }
                 }
             } idlist_tail
             ;
@@ -754,8 +767,9 @@ idlist_tail:    { $$ = NULL; }
                 | COMMA IDENTIFIER idlist_tail {
                     SymTableEntry *libFunc = SymTable_Lookup(symTable, $2, 0);
 
-                    if(libFunc && libFunc->type == LIBFUNC) fprintf(stderr, "\033[1;31mError:\033[0m Cannot shadow a library function. '%s' (line %d)\n", $2, yylineno);
-                    else {
+                    if(libFunc && libFunc->type == LIBFUNC) {
+                        fprintf(stderr, "\033[1;31mError:\033[0m Cannot shadow a library function. '%s' (line %d)\n", $2, yylineno);
+                    } else {
                         int scope;
                         for(scope = currentScope; scope >= 0; scope--) {
                             SymTableEntry *pCurr = SymTable_Lookup(symTable, $2, scope);
@@ -776,8 +790,9 @@ idlist_tail:    { $$ = NULL; }
                             }
                         }
                         SymTableEntry *newEntry = SymTable_Insert(symTable, $2, currentScope, yylineno, FORMAL);
-                        if(newEntry) newEntry->offset = currentOffset++;
-
+                        if(newEntry) {
+                            assignSymbolSpaceAndOffset(newEntry);
+                        }
                     }
                     $$ = $3;
                 }
@@ -943,6 +958,7 @@ int main(int argc, char **argv) {
     symTable = SymTable_Initialize();
     initQuads();
     initOffsetStack();
+    initOffsetManagement();
 
     yyin = input_file;
     
@@ -1016,8 +1032,7 @@ void printEverything(int symbols, int quads, int instructions, int constants) {
 }
 
 void updateProgramVarCount(SymTableEntry *entry) {
-    if (entry && (entry->type == GLOBAL_VAR || 
-                  (entry->type == LOCAL_VAR && !isFunctionScope(entry->scope)))) {
+    if (entry && entry->space == PROGRAM_SPACE) {
         if (entry->offset >= programVarCount) {
             programVarCount = entry->offset + 1;
         }

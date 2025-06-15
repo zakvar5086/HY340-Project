@@ -63,7 +63,8 @@ SymTableEntry *newtemp() {
     char *name = newtempname();
     SymTableEntry *tmp = SymTable_LookupAny(symTable, name);
     if(!tmp) {
-        tmp = SymTable_Insert(symTable, name, currentScope, 0, LOCAL_VAR);
+        SymbolType type = (currentScope == 0) ? GLOBAL_VAR : LOCAL_VAR;
+        tmp = SymTable_Insert(symTable, name, currentScope, 0, type);
         tmp->offset = currentOffset++;
     }
     free(name);

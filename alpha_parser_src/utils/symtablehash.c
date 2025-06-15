@@ -83,6 +83,7 @@ SymTableEntry *SymTable_Insert(SymTable *table, const char *name, unsigned int s
     entry->scope = scope;
     entry->line = line;
     entry->offset = 0;
+    entry->space = 0;
     entry->localCount = 0;
     entry->taddress = 0;
     entry->isActive = 1;

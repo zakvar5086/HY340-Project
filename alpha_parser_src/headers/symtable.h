@@ -18,6 +18,7 @@ typedef struct SymTableEntry {
     unsigned scope;
     unsigned line;
     unsigned offset;
+    unsigned space;
     unsigned localCount;
     unsigned taddress;
     int isActive;
@@ -59,7 +60,7 @@ SymTableEntry *SymTable_LookupAny(SymTable *table, const char *name);
 
 void SymTable_Hide(SymTable *table, unsigned int scope);
 
-SymTable* SymTable_Initialize(void);
+SymTable *SymTable_Initialize(void);
 
 void SymTable_Print(SymTable *table);
 
