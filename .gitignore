@@ -22,7 +22,10 @@ test.c
 parser.tab.c
 parser.tab.h
 test.alpha
+debug.txt
 remake.sh
 runTests.sh
+cleanTests.sh
 parser.output
 *.o
+*.abc

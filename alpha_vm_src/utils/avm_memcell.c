@@ -78,21 +78,7 @@ char *avm_tostring(avm_memcell *m) {
 /* Type-specific string conversion functions */
 char *number_tostring(avm_memcell *m) {
     char *s = (char*)malloc(32);
-    double num = m->data.numVal;
-
-    if(num == (long long)num && num >= LLONG_MIN && num <= LLONG_MAX) {
-        sprintf(s, "%.0f", num);
-    } else {
-        sprintf(s, "%.5f", num);
-
-        char *end = s + strlen(s) - 1;
-        while(end > s && *end == '0') {
-            *end = '\0';
-            end--;
-        }
-        if(end > s && *end == '.') *end = '\0';
-    }
-
+    sprintf(s, "%.3f", m->data.numVal);
     return s;
 }
 

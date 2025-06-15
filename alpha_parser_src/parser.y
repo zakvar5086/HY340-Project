@@ -97,7 +97,6 @@ stmt_list:  { make_stmt(&$$); }
 
 stmt:       expr SEMICOLON {
                 $1 = emit_eval_var($1);
-                resetTemp();
                 make_stmt(&$$);
             }
             | ifstmt
